@@ -23,44 +23,6 @@ scripts/
 All commands below assume you're running from inside `scripts/`, writing
 into `output/` and reading the Terraform config via `../terraform/config/repositories.yaml`.
 
-## What replaced what
-
-| Old script | Status | Replaced by |
-|---|---|---|
-| `find_team_repos.py` | Cleaned, same behaviour | `discover_repos.py` |
-| `audit_repos.py` | Folded in | `audit_repo_teams.py --from-yaml` |
-| `get_repo_teams.py` | Folded in | `audit_repo_teams.py --repos-file` (or `--term`) |
-| `get_org_teams.py` | Folded in | `export_team_yaml.py --list` |
-| `get_team_members.py` | Folded in | `export_team_yaml.py --yaml <slug>` |
-| `team_roles.py` | **Kept, unchanged** | still `team_roles.py` — see note below |
-
-**Why `team_roles.py` wasn't touched:** it's not a standalone audit script —
-it's a Terraform `external` data source provider, invoked BY Terraform
-itself (reads a JSON query on stdin, writes a JSON result to stdout, per
-Terraform's `external` provider protocol). It's a different category of
-thing from the other five, which are all human-run reporting/discovery
-tools. It was already well-documented and correct; don't merge it with the
-others or point Terraform's `external` block at anything else.
-
-**What was actually wrong with the originals, fixed in the consolidation:**
-- Three scripts (`get_org_teams.py`, `get_repo_teams.py`,
-  `get_team_members.py`) hardcoded `ORG_NAME = "DEFRA"` with a
-  `# Replace with your actual org name` comment — exactly the kind of thing
-  that gets missed when reused elsewhere. Every script now takes `--org` or
-  reads `GITHUB_ORG` from the environment; there is no hardcoded org
-  anywhere in this directory.
-- Duplicated, slightly-inconsistent boilerplate (auth headers, pagination,
-  error handling) across all five reporting scripts — extracted once into
-  `github_api_common.py`, which every other script now imports.
-- `get_team_members.py` fetched each member's role via a per-user
-  membership lookup (N+1 API calls per team). `audit_repos.py` and
-  `team_roles.py` already used the more efficient `?role=maintainer` /
-  `?role=member` list filter (2 calls per team, any team size) — that's now
-  the one shared implementation (`get_team_members_with_roles` in the
-  common module) everything uses.
-- Inconsistent auth header style (`Authorization: token X` vs `Authorization:
-  Bearer X`, with/without the API version pin) — standardized on the
-  modern `Bearer` + `X-GitHub-Api-Version` form everywhere.
 
 ## Requirements
 
