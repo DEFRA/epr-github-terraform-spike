@@ -1,0 +1,31 @@
+github_organisation: "DEFRA"
+
+repos:
+    - name: epr-github-terraform-spike
+    # Example of overriding only what differs from the baseline — everything
+    # not listed here (e.g. require_conversation_resolution, block_force_pushes,
+    # secret_scanning) is still inherited from settings_defaults.
+      settings:
+        branch_protection:
+          enforcement: "active"               # "evaluate" for dry-run, "active" to enforce
+          required_approving_review_count: 2    # this repo needs 2 approvals, not the org default of 1
+          required_status_checks:
+            contexts: []   # no CI exists on this repo — don't require checks that can never pass
+        merge_strategy:
+          allow_rebase_merge: true              # this team prefers rebase over squash-only
+        tag_protection:
+          enforcement: "active"
+          patterns:
+            - "v*"
+            - "release-*"
+      teams:
+        - slug: "epr-github-spike-demo1"
+          name: "EPR-Github-Spike-Demo1"
+          permission: "push"
+          existing: true               # team already existed on GitHub — import, don't create
+          attachment_existing: true    # now applied — this repo↔team link is real, no longer new
+          members:
+            - username: "devenbairat"
+              role: "maintainer"
+            - username: "jordanrowe"
+              role: "member"
