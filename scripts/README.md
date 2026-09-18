@@ -23,7 +23,6 @@ scripts/
 All commands below assume you're running from inside `scripts/`, writing
 into `output/` and reading the Terraform config via `../terraform/config/repositories.yaml`.
 
-
 ## Requirements
 
 ```bash
@@ -63,7 +62,7 @@ permission, parent team, and a semicolon-separated `username:role` member
 list) — good for a quick spreadsheet review or sharing outside the team.
 `epr-team-audit.json` has the same data in full nested form, and its
 `members` lists can be pasted directly into `repositories.yaml` team blocks
-(with `existing: true`, since these are real, already-existing teams).
+— team/attachment existence is now detected automatically, nothing to flag.
 
 If you already have a `repositories.yaml` and want to re-audit exactly what's
 in it (this was `audit_repos.py`'s job):

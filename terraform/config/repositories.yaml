@@ -22,10 +22,23 @@ repos:
         - slug: "epr-github-spike-demo1"
           name: "EPR-Github-Spike-Demo1"
           permission: "push"
-          existing: true                        # true if the team already exists, false if it doesn't
-          attachment_existing: true             # true if the team already has access to this repo, false if it doesn't
           members:
             - username: "devenbairat"
               role: "maintainer"
             - username: "jordanrowe"
               role: "member"
+            - username: "thomasaustin-ee-defra"
+              role: "member"
+        
+        - slug: "epr-github-spike-demo2"
+          name: "EPR-Github-Spike-Demo2"
+          permission: "push"
+          members:
+            - username: "paulb-esynergy"
+              role: "maintainer"
+            - username: "jordanrowe"
+              role: "member"
+            - username: "or1can"
+              role: "member"
+
+
