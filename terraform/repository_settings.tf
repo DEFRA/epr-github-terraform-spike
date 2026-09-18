@@ -49,9 +49,8 @@ resource "github_repository" "this" {
   delete_branch_on_merge = each.value.merge_strategy.delete_branch_on_merge
 
   # --- Dependabot / vulnerability alerts ---
-  # This is the *dependency graph alerting* toggle (distinct from Dependabot
-  # security updates / auto-fix PRs, which is its own resource below).
-  vulnerability_alerts = each.value.vulnerability_alerts
+  # Managed via the dedicated github_repository_vulnerability_alerts
+  # resource below, not this argument — see the note on ignore_changes.
 
   # --- Secret scanning (requires GitHub Advanced Security on private repos;
   # free on public repos). Comment this block out if GHAS isn't licensed for
@@ -88,6 +87,24 @@ resource "github_repository" "this" {
       license_template,
       pages,
       template,
+      # vulnerability_alerts was removed from this resource's config above
+      # (deprecated here; managed by github_repository_vulnerability_alerts
+      # instead). Without this line, Terraform would treat the attribute as
+      # unset and plan to reset it to the schema default (false) on every
+      # repo — silently disabling alerts. This keeps whatever value is
+      # already in state, permanently ignoring drift on it here.
+      vulnerability_alerts,
     ]
   }
+}
+
+# --- Vulnerability alerts (dependency graph), as its own resource ---
+# Presence of this resource = enabled; there's no separate boolean — so it's
+# only created for repos where repo_settings_map says vulnerability_alerts
+# should be on. A repo that explicitly wants this off simply has no
+# instance of this resource (nothing to destroy/toggle either way).
+resource "github_repository_vulnerability_alerts" "this" {
+  for_each = { for name, cfg in local.repo_settings_map : name => cfg if cfg.vulnerability_alerts }
+
+  repository = each.key
 }
