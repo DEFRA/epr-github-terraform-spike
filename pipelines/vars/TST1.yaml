@@ -1,6 +1,6 @@
 # Test only: same shape as the app repos' pipelines/vars/<env>.yaml, but takes the
 # service connection name from the shared ServiceConnections library. Resource names
-# are epr-backend-account-microservice's TST1 resources (read-only checks).
+# are epr-backend-account-microservice's TST1 resources.
 variables:
 - group: ServiceConnections
 - name: azureSubscription

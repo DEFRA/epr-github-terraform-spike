@@ -1,14 +1,15 @@
 # Test only: same shape as the app repos' pipelines/vars/<env>.yaml, but takes the
-# service connection name from the shared ServiceConnections library.
+# service connection name from the shared ServiceConnections library. Resource names
+# are epr-backend-account-microservice's DEV15 resources.
 variables:
 - group: ServiceConnections
 - name: azureSubscription
   value: $(ServiceConnectionDEV15)
-- name: docker.imageName
-  value: test-image
 - name: acr.azureContainerRegistryName
-  value: test-registry
+  value: devrwdinfacf401
 - name: acr.repositoryName
-  value: test-repository
+  value: backendaccountserviceregistry
 - name: serviceName
-  value: test-service-DEV15
+  value: DEVRWDWEBWAF407
+- name: kvName
+  value: DEVRWDINFKVF401

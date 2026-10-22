@@ -1,37 +1,46 @@
 # Test pipeline: can the app pipelines take the service connection name from the
-# shared ServiceConnections library instead of one ServiceConnection-<env> group per
-# environment? It deploys nothing and changes nothing.
+# shared ServiceConnections library instead of one ServiceConnection-<env> library per
+# environment? Read-only: deploys and changes nothing.
 #
-#   1. Loads pipelines/vars/<env>.yaml the same way the app repos do.
-#   2. Checks every value resolved (no "$(...)" left) and that azureSubscription is
-#      AZD-RWD-<env>-APP.
-#   3. Optionally signs in with that service connection and runs `az account show`
-#      (read-only). This is the real test: Azure DevOps must resolve the service
-#      connection name before the job starts.
+#   1. Loads pipelines/vars/<env>.yaml the same way the app repos do and checks every
+#      value resolved and azureSubscription is AZD-RWD-<env>-APP.
+#   2. Uses $(azureSubscription) as a task's service connection, as the app pipelines do,
+#      and runs `az account show`. Azure DevOps resolves the service connection name
+#      before the job starts, so this is the step that proves the library value works.
+#   3. Read-only checks of what the app pipelines use the connection for (each runs even
+#      if an earlier one failed; failures are permissions for the team that manages the
+#      service connections): find the web app (deploy + restart), log in to the container
+#      registry, read the SQL secret from Key Vault (SQL migration), and read the shared
+#      template secrets with AZD-RWD-DEV1-APP (secret ids only, never values).
+# Resource names are epr-backend-account-microservice's, from pipelines/vars/<env>.yaml.
 
 trigger: none
 pr: none
 
 parameters:
   - name: envToDeploy
-    displayName: DEV environment to test
+    displayName: Environment to test (lower environments only)
     type: string
     default: DEV1
-    values: [DEV1, DEV2, DEV3, DEV4, DEV7, DEV8, DEV9, DEV14, DEV15]
+    values: [DEV1, DEV2, DEV3, DEV4, DEV7, DEV8, DEV9, DEV14, DEV15, TST1]
   - name: checkServiceConnection
-    displayName: Sign in with the service connection (read-only az account show)
+    displayName: Use the service connection (sign in + read-only checks)
     type: boolean
     default: true
+  - name: pool
+    displayName: Agent pool (DEV and TST deploys use DEFRA-COMMON-UBUNTU-SSV3)
+    type: string
+    default: DEFRA-COMMON-UBUNTU-SSV3
 
 variables:
   - template: vars/${{ parameters.envToDeploy }}.yaml
 
 pool:
-  vmImage: ubuntu-latest
+  name: ${{ parameters.pool }}
 
 jobs:
-  - job: check_values
-    displayName: Check values for ${{ parameters.envToDeploy }}
+  - job: check
+    displayName: Check ${{ parameters.envToDeploy }}
     steps:
       - checkout: none
 
@@ -49,26 +58,104 @@ jobs:
           }
           check azureSubscription               "$AZURE_SUBSCRIPTION" "AZD-RWD-${ENV_TO_DEPLOY}-APP"
           check ServiceConnection${ENV_TO_DEPLOY} "$LIBRARY_VALUE"      "AZD-RWD-${ENV_TO_DEPLOY}-APP"
-          check docker.imageName                "$DOCKER_IMAGE_NAME"
           check acr.azureContainerRegistryName  "$ACR_NAME"
           check acr.repositoryName              "$ACR_REPOSITORY"
           check serviceName                     "$SERVICE_NAME"
+          check kvName                          "$KV_NAME"
           exit $failed
         displayName: Check the values resolved
         env:
           ENV_TO_DEPLOY: ${{ parameters.envToDeploy }}
           AZURE_SUBSCRIPTION: $(azureSubscription)
           LIBRARY_VALUE: $(ServiceConnection${{ parameters.envToDeploy }})
-          DOCKER_IMAGE_NAME: $(docker.imageName)
           ACR_NAME: $(acr.azureContainerRegistryName)
           ACR_REPOSITORY: $(acr.repositoryName)
           SERVICE_NAME: $(serviceName)
+          KV_NAME: $(kvName)
 
       - ${{ if parameters.checkServiceConnection }}:
         - task: AzureCLI@2
-          displayName: Sign in with $(azureSubscription) (read-only)
+          displayName: Sign in with $(azureSubscription)
           inputs:
             azureSubscription: $(azureSubscription)
             scriptType: bash
             scriptLocation: inlineScript
             inlineScript: az account show --query "{subscription:name, id:id, tenant:tenantId}" --output table
+
+        # Read-only checks of what the app pipelines use the service connection for.
+        # Failures here are permissions for the team that manages the service connections.
+        - task: AzureCLI@2
+          displayName: Find web app $(serviceName) (deploy + restart)
+          condition: succeededOrFailed()
+          inputs:
+            azureSubscription: $(azureSubscription)
+            scriptType: bash
+            scriptLocation: inlineScript
+            inlineScript: |
+              set -e
+              apps="$(az webapp list --query "[?name=='$SERVICE_NAME' || name=='${SERVICE_NAME,,}' || name=='${SERVICE_NAME^^}'].{name:name, resourceGroup:resourceGroup, state:state}" --output tsv)"
+              if [ -z "$apps" ]; then
+                echo "##vso[task.logissue type=error]Web app $SERVICE_NAME not visible to this service connection - it cannot deploy to or restart it"
+                exit 1
+              fi
+              echo "OK  can see: $apps"
+          env:
+            SERVICE_NAME: $(serviceName)
+
+        - task: AzureCLI@2
+          displayName: Log in to registry $(acr.azureContainerRegistryName)
+          condition: succeededOrFailed()
+          inputs:
+            azureSubscription: $(azureSubscription)
+            scriptType: bash
+            scriptLocation: inlineScript
+            inlineScript: |
+              set -e
+              az acr login --name "$ACR_NAME" --expose-token --output none
+              echo "OK  az acr login"
+              az acr repository show-tags --name "$ACR_NAME" --repository "$ACR_REPOSITORY" --top 3 --orderby time_desc --output tsv
+              echo "OK  can read $ACR_REPOSITORY tags"
+          env:
+            ACR_NAME: $(acr.azureContainerRegistryName)
+            ACR_REPOSITORY: $(acr.repositoryName)
+
+        - task: AzureCLI@2
+          displayName: Read SQL secret from Key Vault $(kvName) (SQL migration)
+          condition: succeededOrFailed()
+          inputs:
+            azureSubscription: $(azureSubscription)
+            scriptType: bash
+            scriptLocation: inlineScript
+            inlineScript: |
+              set -e
+              # Prints only the secret's id, never its value.
+              az keyvault secret show --vault-name "$KV_NAME" --name RWDSql-AdminLogin --query id --output tsv
+              echo "OK  can read RWDSql-AdminLogin"
+          env:
+            KV_NAME: $(kvName)
+
+        # epr-webapps-code-deploy-templates reads these secrets with the old connection
+        # typed in (azureSubscription: 'AZD-RWD-DEV1'), whatever the environment:
+        #   templates/analyse-and-test.yaml:138         EPRADO-SonarQubeToken (every CI build)
+        #   templates/deployment.yaml:36, epr-funcs-deployment-pipeline.yaml:65,
+        #   templates/docker-run-sql-migration.yaml:45  DockerPassword
+        #   templates/deployment.yaml:95                TeamsNotificationWebhook(Eviden)
+        # This checks AZD-RWD-DEV1-APP, its likely replacement, can read them all.
+        - task: AzureCLI@2
+          displayName: Read shared template secrets with $(ServiceConnectionDEV1)
+          condition: succeededOrFailed()
+          inputs:
+            azureSubscription: $(ServiceConnectionDEV1)
+            scriptType: bash
+            scriptLocation: inlineScript
+            inlineScript: |
+              failed=0
+              for secret in EPRADO-SonarQubeToken DockerPassword TeamsNotificationWebhook TeamsNotificationWebhookEviden; do
+                # Prints only the secret's id, never its value.
+                if az keyvault secret show --vault-name DEVRWDINFKV1401 --name "$secret" --query id --output tsv; then
+                  echo "OK  can read $secret"
+                else
+                  echo "##vso[task.logissue type=error]cannot read $secret from DEVRWDINFKV1401"; failed=1
+                fi
+              done
+              exit $failed
