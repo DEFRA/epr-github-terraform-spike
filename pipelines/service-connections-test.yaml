@@ -35,12 +35,13 @@ parameters:
 variables:
   - template: vars/${{ parameters.envToDeploy }}.yaml
 
-pool:
-  name: ${{ parameters.pool }}
-
 jobs:
   - job: check
     displayName: Check ${{ parameters.envToDeploy }}
+    # Pool set on the job: Azure DevOps does not allow a template expression in a
+    # pipeline-level pool (epr-webapps-code-deploy-templates sets it on the job too).
+    pool:
+      name: ${{ parameters.pool }}
     steps:
       - checkout: none
 
