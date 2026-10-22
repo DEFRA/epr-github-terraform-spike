@@ -1,0 +1,14 @@
+# Test only: same shape as the app repos' pipelines/vars/<env>.yaml, but takes the
+# service connection name from the shared ServiceConnections library.
+variables:
+- group: ServiceConnections
+- name: azureSubscription
+  value: $(ServiceConnectionDEV14)
+- name: docker.imageName
+  value: test-image
+- name: acr.azureContainerRegistryName
+  value: test-registry
+- name: acr.repositoryName
+  value: test-repository
+- name: serviceName
+  value: test-service-DEV14

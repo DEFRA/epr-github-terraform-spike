@@ -1,0 +1,74 @@
+# Test pipeline: can the app pipelines take the service connection name from the
+# shared ServiceConnections library instead of one ServiceConnection-<env> group per
+# environment? It deploys nothing and changes nothing.
+#
+#   1. Loads pipelines/vars/<env>.yaml the same way the app repos do.
+#   2. Checks every value resolved (no "$(...)" left) and that azureSubscription is
+#      AZD-RWD-<env>-APP.
+#   3. Optionally signs in with that service connection and runs `az account show`
+#      (read-only). This is the real test: Azure DevOps must resolve the service
+#      connection name before the job starts.
+
+trigger: none
+pr: none
+
+parameters:
+  - name: envToDeploy
+    displayName: DEV environment to test
+    type: string
+    default: DEV1
+    values: [DEV1, DEV2, DEV3, DEV4, DEV7, DEV8, DEV9, DEV14, DEV15]
+  - name: checkServiceConnection
+    displayName: Sign in with the service connection (read-only az account show)
+    type: boolean
+    default: true
+
+variables:
+  - template: vars/${{ parameters.envToDeploy }}.yaml
+
+pool:
+  vmImage: ubuntu-latest
+
+jobs:
+  - job: check_values
+    displayName: Check values for ${{ parameters.envToDeploy }}
+    steps:
+      - checkout: none
+
+      - bash: |
+          set -u
+          failed=0
+          check() {   # name, value, expected (optional)
+            if [ -z "$2" ] || [[ "$2" == *'$('* ]]; then
+              echo "##vso[task.logissue type=error]$1 did not resolve: '$2'"; failed=1
+            elif [ -n "${3:-}" ] && [ "$2" != "$3" ]; then
+              echo "##vso[task.logissue type=error]$1 is '$2', expected '$3'"; failed=1
+            else
+              echo "OK  $1 = $2"
+            fi
+          }
+          check azureSubscription               "$AZURE_SUBSCRIPTION" "AZD-RWD-${ENV_TO_DEPLOY}-APP"
+          check ServiceConnection${ENV_TO_DEPLOY} "$LIBRARY_VALUE"      "AZD-RWD-${ENV_TO_DEPLOY}-APP"
+          check docker.imageName                "$DOCKER_IMAGE_NAME"
+          check acr.azureContainerRegistryName  "$ACR_NAME"
+          check acr.repositoryName              "$ACR_REPOSITORY"
+          check serviceName                     "$SERVICE_NAME"
+          exit $failed
+        displayName: Check the values resolved
+        env:
+          ENV_TO_DEPLOY: ${{ parameters.envToDeploy }}
+          AZURE_SUBSCRIPTION: $(azureSubscription)
+          LIBRARY_VALUE: $(ServiceConnection${{ parameters.envToDeploy }})
+          DOCKER_IMAGE_NAME: $(docker.imageName)
+          ACR_NAME: $(acr.azureContainerRegistryName)
+          ACR_REPOSITORY: $(acr.repositoryName)
+          SERVICE_NAME: $(serviceName)
+
+      - ${{ if parameters.checkServiceConnection }}:
+        - task: AzureCLI@2
+          displayName: Sign in with $(azureSubscription) (read-only)
+          inputs:
+            azureSubscription: $(azureSubscription)
+            scriptType: bash
+            scriptLocation: inlineScript
+            inlineScript: az account show --query "{subscription:name, id:id, tenant:tenantId}" --output table
