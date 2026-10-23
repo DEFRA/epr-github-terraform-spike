@@ -58,6 +58,11 @@ jobs:
               fi
             done < "pipelines/apps/${ENV_TO_DEPLOY}.txt"
             echo
+            # Apps the connection can see that no repo's vars file names (e.g. renamed apps).
+            awk '{print tolower($4)}' "pipelines/apps/${ENV_TO_DEPLOY}.txt" | sort -u > expected.txt
+            echo "Visible apps not named in any repo's vars:"
+            awk 'NR==FNR {e[$1]=1; next} !($1 in e) {print "  " $1 "  (" $2 ")"}' expected.txt visible.txt
+            echo
             summary="$ENV_TO_DEPLOY - $found visible, $missing not visible"
             # Shown at the end of the log, as the run's name in the runs list, and on the run's summary page.
             echo "##[section]$summary"
