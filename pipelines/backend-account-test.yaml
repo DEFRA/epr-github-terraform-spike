@@ -1,0 +1,173 @@
+# Test pipeline for epr-backend-account-microservice (ELSP-371): loads the repo's real,
+# converted pipelines/vars/<env>.yaml from branch chore/ELSP-371-serviceconnections-library
+# and checks, read-only, everything its pipelines use the service connection for.
+# Deploys nothing and changes nothing.
+#
+#   deployment-pipeline.yaml (web app)          find the app + read its current image tag
+#   deployment-pipeline-validation-data-api     find the function app + read its image tag
+#   azure-pipelines.yml (CI, DEV4)              log in to the registry, read image tags
+#   Initialise-SQL-db.yaml                      read the SQL admin secrets from $(kvName),
+#                                               find the database-migrations image
+# Not tested (they write): deploy, restart, image push, image import (non-development
+# environments), running the migration.
+
+trigger: none
+pr: none
+
+resources:
+  repositories:
+    - repository: backendAccount
+      type: github
+      endpoint: DEFRA-ADP
+      name: DEFRA/epr-backend-account-microservice
+      ref: refs/heads/chore/ELSP-371-serviceconnections-library
+
+parameters:
+  - name: env
+    displayName: Environment to test (lower environments only)
+    type: string
+    default: DEV1
+    values: [DEV1, DEV2, DEV3, DEV4, DEV7, DEV8, DEV9, DEV14, DEV15, TST1]
+  - name: pool
+    displayName: Agent pool (the repo's pipelines use DEFRA-COMMON-UBUNTU-SSV3)
+    type: string
+    default: DEFRA-COMMON-UBUNTU-SSV3
+
+# Same vars files the repo's pipelines load for each environment.
+variables:
+  - ${{ if eq(parameters.env, 'DEV15') }}:
+    - template: pipelines/vars/DEV15.yaml@backendAccount
+  - ${{ elseif eq(parameters.env, 'TST1') }}:
+    - template: pipelines/vars/tst.yaml@backendAccount
+  - ${{ else }}:
+    - template: pipelines/vars/${{ parameters.env }}-development.yaml@backendAccount
+
+jobs:
+  - job: check
+    displayName: epr-backend-account-microservice ${{ parameters.env }}
+    pool:
+      name: ${{ parameters.pool }}
+    steps:
+      - checkout: none
+
+      - bash: |
+          set -u
+          failed=0
+          check() {   # name, value, expected (optional)
+            if [ -z "$2" ] || [[ "$2" == *'$('* ]]; then
+              echo "##vso[task.logissue type=error]$1 did not resolve: '$2'"; failed=1
+            elif [ -n "${3:-}" ] && [ "$2" != "$3" ]; then
+              echo "##vso[task.logissue type=error]$1 is '$2', expected '$3'"; failed=1
+            else
+              echo "OK  $1 = $2"
+            fi
+          }
+          check azureSubscription              "$AZURE_SUBSCRIPTION" "AZD-RWD-${ENV}-APP"
+          check docker.imageName               "$DOCKER_IMAGE_NAME"
+          check acr.azureContainerRegistryName "$ACR_NAME"
+          check acr.repositoryName             "$ACR_REPOSITORY"
+          check serviceName                    "$SERVICE_NAME"
+          check kvName                         "$KV_NAME"
+          check sqlDBserver                    "$SQL_SERVER"
+          check sqlDB                          "$SQL_DB"
+          check validationApiServiceName       "$VALIDATION_APP"
+          check validationApiRepository        "$VALIDATION_REPOSITORY"
+          exit $failed
+        displayName: Check the repo's vars resolved
+        env:
+          ENV: ${{ parameters.env }}
+          AZURE_SUBSCRIPTION: $(azureSubscription)
+          DOCKER_IMAGE_NAME: $(docker.imageName)
+          ACR_NAME: $(acr.azureContainerRegistryName)
+          ACR_REPOSITORY: $(acr.repositoryName)
+          SERVICE_NAME: $(serviceName)
+          KV_NAME: $(kvName)
+          SQL_SERVER: $(sqlDBserver)
+          SQL_DB: $(sqlDB)
+          VALIDATION_APP: $(validationApiServiceName)
+          VALIDATION_REPOSITORY: $(validationApiRepository)
+
+      - task: AzureCLI@2
+        displayName: Sign in with $(azureSubscription)
+        inputs:
+          azureSubscription: $(azureSubscription)
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: az account show --query "{subscription:name, id:id, tenant:tenantId}" --output table
+
+      # templates/get-current-dockertag.yaml and the restart step use az webapp/functionapp list.
+      - task: AzureCLI@2
+        displayName: Web app $(serviceName) - find it and read its current image (deployment-pipeline)
+        condition: succeededOrFailed()
+        inputs:
+          azureSubscription: $(azureSubscription)
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            set -e
+            image="$(az webapp list --query "[?name=='$APP' || name=='${APP,,}' || name=='${APP^^}'].siteConfig.linuxFxVersion" --output tsv)"
+            [ -n "$image" ] || { echo "##vso[task.logissue type=error]Web app $APP not visible to this service connection"; exit 1; }
+            echo "OK  $APP runs $image"
+        env:
+          APP: $(serviceName)
+
+      - task: AzureCLI@2
+        displayName: Function app $(validationApiServiceName) - find it and read its current image (validation-data-api)
+        condition: succeededOrFailed()
+        inputs:
+          azureSubscription: $(azureSubscription)
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            set -e
+            image="$(az functionapp list --query "[?name=='$APP' || name=='${APP,,}' || name=='${APP^^}'].siteConfig.linuxFxVersion" --output tsv)"
+            [ -n "$image" ] || { echo "##vso[task.logissue type=error]Function app $APP not visible to this service connection"; exit 1; }
+            echo "OK  $APP runs $image"
+        env:
+          APP: $(validationApiServiceName)
+
+      # CI (DEV4) pushes here; Initialise-SQL-db pulls the database-migrations image from here.
+      - task: AzureCLI@2
+        displayName: Registry $(acr.azureContainerRegistryName) - log in and read image tags (CI, SQL migration)
+        condition: succeededOrFailed()
+        inputs:
+          azureSubscription: $(azureSubscription)
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            set -e
+            az acr login --name "$ACR_NAME" --expose-token --output none
+            echo "OK  az acr login"
+            for repo in "$ACR_REPOSITORY" "$VALIDATION_REPOSITORY"; do
+              echo "Latest tags in $repo:"
+              az acr repository show-tags --name "$ACR_NAME" --repository "$repo" --top 3 --orderby time_desc --output tsv
+            done
+            echo "Latest database-migrations tags in $ACR_REPOSITORY:"
+            az acr repository show-tags --name "$ACR_NAME" --repository "$ACR_REPOSITORY" --orderby time_desc \
+              --query "[?contains(@, 'database-migrations')] | [:3]" --output tsv
+        env:
+          ACR_NAME: $(acr.azureContainerRegistryName)
+          ACR_REPOSITORY: $(acr.repositoryName)
+          VALIDATION_REPOSITORY: $(validationApiRepository)
+
+      # templates/docker-run-sql-migration.yaml "Get SQL Credentials from KV".
+      - task: AzureCLI@2
+        displayName: Key Vault $(kvName) - read SQL admin secrets (Initialise-SQL-db)
+        condition: succeededOrFailed()
+        inputs:
+          azureSubscription: $(azureSubscription)
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            failed=0
+            for secret in RWDSql-AdminLogin RWDSql-AdminPassword; do
+              # Prints only the secret's id, never its value.
+              if az keyvault secret show --vault-name "$KV_NAME" --name "$secret" --query id --output tsv; then
+                echo "OK  can read $secret"
+              else
+                echo "##vso[task.logissue type=error]cannot read $secret from $KV_NAME"; failed=1
+              fi
+            done
+            exit $failed
+        env:
+          KV_NAME: $(kvName)
