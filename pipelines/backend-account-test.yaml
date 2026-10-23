@@ -33,12 +33,10 @@ parameters:
     type: string
     default: DEFRA-COMMON-UBUNTU-SSV3
 
-# Same vars files the repo's pipelines load for each environment. The library is also
-# named here: a library named only inside a template from ANOTHER repository was not
-# used when Azure DevOps resolved the service connection ("$(ServiceConnectionDEV1)
-# could not be found"). The app repos load their own vars files, so they are not affected.
+# Same vars files the repo's pipelines load for each environment.
+# Note: the run dialog's "Resources" page shows "service connection $(ServiceConnection<ENV>)
+# could not be found" - its check does not load library values. Real runs resolve it.
 variables:
-  - group: ServiceConnections
   - ${{ if eq(parameters.env, 'DEV15') }}:
     - template: pipelines/vars/DEV15.yaml@backendAccount
   - ${{ elseif eq(parameters.env, 'TST1') }}:

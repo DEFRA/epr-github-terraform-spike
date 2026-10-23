@@ -33,3 +33,14 @@ pass them to the team that manages the service connections.
 - The sign-in step fails with "service connection $(ServiceConnectionDEV1) could not be
   found": Azure DevOps does not resolve a variable that points to another variable for
   service connections - keep one library per environment.
+
+## Other test pipelines (all read-only)
+
+- `pipelines/backend-account-test.yaml` - loads epr-backend-account-microservice's converted
+  vars files (branch `chore/ELSP-371-serviceconnections-library`) and checks everything its
+  pipelines use the connection for.
+- `pipelines/all-apps-test.yaml` - checks the `AZD-RWD-<env>-APP` connection can see every web
+  and function app the EPR repos deploy to in that environment. The app list per environment
+  (`pipelines/apps/<env>.txt`) is generated from the repos' vars files:
+  `python3 scripts/list_apps.py ~/GitHub <repo> ...` (repos without a vars file for an
+  environment are listed in `pipelines/apps/MISSING.txt`).

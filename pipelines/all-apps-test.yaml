@@ -1,0 +1,79 @@
+# Test pipeline: can the AZD-RWD-<env>-APP connection see every web/function app the EPR
+# repos deploy to in that environment? Read-only: deploys and changes nothing.
+#
+# The deploy templates (epr-webapps-code-deploy-templates) find each app with
+# az webapp/functionapp list in the service connection's subscription before deploying and
+# restarting it. This lists the apps the connection can see and compares them with
+# pipelines/apps/<env>.txt, generated from the repos' vars files by scripts/list_apps.py.
+# epr-web-shutter-screen-pages (storage, not an app) is not included - tested separately.
+
+trigger: none
+pr: none
+
+parameters:
+  - name: envToDeploy
+    displayName: Environment to test (lower environments only)
+    type: string
+    default: DEV1
+    values: [DEV1, DEV2, DEV3, DEV4, DEV7, DEV8, DEV9, DEV14, DEV15, TST1]
+  - name: pool
+    displayName: Agent pool (DEV and TST deploys use DEFRA-COMMON-UBUNTU-SSV3)
+    type: string
+    default: DEFRA-COMMON-UBUNTU-SSV3
+
+variables:
+  - template: vars/${{ parameters.envToDeploy }}.yaml
+
+jobs:
+  - job: check
+    displayName: All apps ${{ parameters.envToDeploy }}
+    pool:
+      name: ${{ parameters.pool }}
+    steps:
+      - checkout: self
+
+      - task: AzureCLI@2
+        displayName: Find every repo's app with $(azureSubscription)
+        inputs:
+          azureSubscription: $(azureSubscription)
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            set -eu
+            az account show --query "{subscription:name, id:id}" --output table
+            # Every web and function app this connection can see, as "name resourceGroup".
+            az resource list --resource-type Microsoft.Web/sites \
+              --query "[].[name, resourceGroup]" --output tsv | tr '[:upper:]' '[:lower:]' > visible.txt
+            echo "Apps visible to $(azureSubscription): $(wc -l < visible.txt)"
+            missing=0; found=0
+            printf '%-45s %-50s %-22s %s\n' REPO "VARS FILE" APP "RESOURCE GROUP"
+            while read -r repo file key app; do
+              [ -n "$repo" ] || continue
+              rg="$(awk -v a="$(echo "$app" | tr '[:upper:]' '[:lower:]')" '$1==a {print $2}' visible.txt)"
+              if [ -n "$rg" ]; then
+                found=$((found + 1)); printf '%-45s %-50s %-22s %s\n' "$repo" "$file" "$app" "$rg"
+              else
+                missing=$((missing + 1)); printf '%-45s %-50s %-22s %s\n' "$repo" "$file" "$app" "NOT VISIBLE"
+                echo "##vso[task.logissue type=error]$repo: $app ($key in $file) not visible to $(azureSubscription) - its deploy would fail"
+              fi
+            done < "pipelines/apps/${ENV_TO_DEPLOY}.txt"
+            echo
+            summary="$ENV_TO_DEPLOY - $found visible, $missing not visible"
+            # Shown at the end of the log, as the run's name in the runs list, and on the run's summary page.
+            echo "##[section]$summary"
+            echo "##vso[build.updatebuildnumber]$(Build.BuildId) $ENV_TO_DEPLOY $found visible $missing not visible"
+            {
+              echo "### $summary"
+              echo
+              echo "| Repo | Vars file | App | Resource group |"
+              echo "|---|---|---|---|"
+              while read -r repo file key app; do
+                [ -n "$repo" ] || continue
+                rg="$(awk -v a="$(echo "$app" | tr '[:upper:]' '[:lower:]')" '$1==a {print $2}' visible.txt)"
+                echo "| $repo | $file | $app | ${rg:-**NOT VISIBLE**} |"
+              done < "pipelines/apps/${ENV_TO_DEPLOY}.txt"
+            } > "$(Agent.TempDirectory)/apps-summary.md"
+            echo "##vso[task.uploadsummary]$(Agent.TempDirectory)/apps-summary.md"
+            [ "$missing" -eq 0 ]
+        env:
+          ENV_TO_DEPLOY: ${{ parameters.envToDeploy }}
