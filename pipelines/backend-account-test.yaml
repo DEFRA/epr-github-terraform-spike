@@ -20,7 +20,7 @@ resources:
       type: github
       endpoint: DEFRA-ADP
       name: DEFRA/epr-backend-account-microservice
-      ref: refs/heads/chore/ELSP-371-serviceconnections-library
+      ref: refs/heads/main
 
 parameters:
   - name: env
