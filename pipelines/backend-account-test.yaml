@@ -24,14 +24,14 @@ resources:
 
 parameters:
   - name: env
-    displayName: Environment to test (lower environments only)
+    displayName: Environment to test (no prod - PRD1 is not included)
     type: string
     default: DEV1
-    values: [DEV1, DEV2, DEV3, DEV4, DEV7, DEV8, DEV9, DEV14, DEV15, TST1]
+    values: [DEV1, DEV2, DEV3, DEV4, DEV7, DEV8, DEV9, DEV14, DEV15, TST1, PRE1]
   - name: pool
-    displayName: Agent pool (the repo's pipelines use DEFRA-COMMON-UBUNTU-SSV3)
+    displayName: Agent pool (auto = what the deploy templates use - SSV5 for PRE, SSV3 otherwise)
     type: string
-    default: DEFRA-COMMON-UBUNTU-SSV3
+    default: auto
 
 # Same vars files the repo's pipelines load for each environment.
 # Note: the run dialog's "Resources" page shows "service connection $(ServiceConnection<ENV>)
@@ -41,6 +41,8 @@ variables:
     - template: pipelines/vars/DEV15.yaml@backendAccount
   - ${{ elseif eq(parameters.env, 'TST1') }}:
     - template: pipelines/vars/tst.yaml@backendAccount
+  - ${{ elseif eq(parameters.env, 'PRE1') }}:
+    - template: pipelines/vars/preprod.yaml@backendAccount
   - ${{ else }}:
     - template: pipelines/vars/${{ parameters.env }}-development.yaml@backendAccount
 
@@ -48,7 +50,13 @@ jobs:
   - job: check
     displayName: epr-backend-account-microservice ${{ parameters.env }}
     pool:
-      name: ${{ parameters.pool }}
+      # epr-deployment-pipeline.yaml runs PRE deploys on SSV5, the rest on SSV3.
+      ${{ if ne(parameters.pool, 'auto') }}:
+        name: ${{ parameters.pool }}
+      ${{ elseif startsWith(parameters.env, 'PRE') }}:
+        name: DEFRA-COMMON-UBUNTU-SSV5
+      ${{ else }}:
+        name: DEFRA-COMMON-UBUNTU-SSV3
     steps:
       - checkout: none
 
@@ -64,7 +72,9 @@ jobs:
               echo "OK  $1 = $2"
             fi
           }
-          check azureSubscription              "$AZURE_SUBSCRIPTION" "AZD-RWD-${ENV}-APP"
+          # PRE connections start with AZR-, the others with AZD-.
+          case "$ENV" in PRE*) prefix=AZR ;; *) prefix=AZD ;; esac
+          check azureSubscription              "$AZURE_SUBSCRIPTION" "${prefix}-RWD-${ENV}-APP"
           check docker.imageName               "$DOCKER_IMAGE_NAME"
           check acr.azureContainerRegistryName "$ACR_NAME"
           check acr.repositoryName             "$ACR_REPOSITORY"
