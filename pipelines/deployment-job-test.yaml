@@ -4,12 +4,15 @@
 # be found" - its steps run in epr-deployment-pipeline.yaml's `deployment: DeployAppCode`,
 # while the other spike pipelines only tested normal jobs.
 #
-# Loads epr-calculator-frontend's real vars file from main and runs, like DeployAppCode,
-# a deployment job on the 'development' environment. Read-only: only az account show.
+# Mirrors the repos' deployment-pipeline.yaml: loads epr-calculator-frontend's real vars file
+# from main and extends a template (pipelines/templates/deployment-job.yaml) that runs a
+# deployment job on the 'development' environment. Read-only: only az account show.
 # It deploys nothing, but the run shows in the 'development' environment's deployment history.
 #
-#   lookup: nested   $(azureSubscription), as the converted vars files do (two lookups)
-#   lookup: direct   $(ServiceConnection<ENV>) straight in the step input (one lookup)
+#   lookup: nested       $(azureSubscription), as the repos pass it today (two lookups) - fails
+#   lookup: direct       $(ServiceConnection<ENV>) straight in (one lookup) - works
+#   lookup: compiletime  ${{ variables.azureSubscription }} - the proposed fix for the repos:
+#                        expands to $(ServiceConnection<ENV>) when the pipeline is compiled
 # Run each separately: an unresolved connection fails the whole run before it starts.
 
 trigger: none
@@ -30,33 +33,21 @@ parameters:
     default: DEV7
     values: [DEV1, DEV2, DEV3, DEV4, DEV7, DEV8, DEV9, DEV14]
   - name: lookup
-    displayName: How the step gets the service connection
+    displayName: How the template gets the service connection
     type: string
-    default: nested
-    values: [nested, direct]
+    default: compiletime
+    values: [nested, direct, compiletime]
 
 variables:
   - template: pipelines/vars/${{ parameters.env }}-development.yaml@calculatorFrontend
 
-jobs:
-  - deployment: DeployAppCode
+extends:
+  template: templates/deployment-job.yaml
+  parameters:
     displayName: Deployment job ${{ parameters.env }} (${{ parameters.lookup }})
-    environment: development
-    pool:
-      name: DEFRA-COMMON-UBUNTU-SSV3
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-            - task: AzureCLI@2
-              displayName: Sign in (${{ parameters.lookup }} lookup)
-              inputs:
-                ${{ if eq(parameters.lookup, 'nested') }}:
-                  azureSubscription: $(azureSubscription)
-                ${{ else }}:
-                  azureSubscription: $(ServiceConnection${{ parameters.env }})
-                scriptType: bash
-                scriptLocation: inlineScript
-                inlineScript: |
-                  echo "azureSubscription = $(azureSubscription)"
-                  az account show --query "{subscription:name, id:id}" --output table
+    ${{ if eq(parameters.lookup, 'nested') }}:
+      azureSubscription: $(azureSubscription)
+    ${{ elseif eq(parameters.lookup, 'direct') }}:
+      azureSubscription: $(ServiceConnection${{ parameters.env }})
+    ${{ else }}:
+      azureSubscription: ${{ variables.azureSubscription }}

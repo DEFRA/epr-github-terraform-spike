@@ -1,0 +1,27 @@
+# Stand-in for epr-deployment-pipeline.yaml@CommonTemplates: the service connection arrives
+# as a template parameter and is used in a deployment job. Read-only: az account show.
+parameters:
+  - name: azureSubscription
+    type: string
+  - name: displayName
+    type: string
+
+jobs:
+  - deployment: DeployAppCode
+    displayName: ${{ parameters.displayName }}
+    environment: development
+    pool:
+      name: DEFRA-COMMON-UBUNTU-SSV3
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - task: AzureCLI@2
+              displayName: Sign in with ${{ parameters.azureSubscription }}
+              inputs:
+                azureSubscription: ${{ parameters.azureSubscription }}
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  echo "azureSubscription = $(azureSubscription)"
+                  az account show --query "{subscription:name, id:id}" --output table
