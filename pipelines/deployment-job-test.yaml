@@ -1,0 +1,62 @@
+# Test pipeline: does $(azureSubscription) -> $(ServiceConnection<ENV>) resolve inside a
+# deployment job? epr-calculator-frontend's DEV7 deploy failed with "Step input
+# azureSubscription references service connection $(ServiceConnectionDEV7) which could not
+# be found" - its steps run in epr-deployment-pipeline.yaml's `deployment: DeployAppCode`,
+# while the other spike pipelines only tested normal jobs.
+#
+# Loads epr-calculator-frontend's real vars file from main and runs, like DeployAppCode,
+# a deployment job on the 'development' environment. Read-only: only az account show.
+# It deploys nothing, but the run shows in the 'development' environment's deployment history.
+#
+#   lookup: nested   $(azureSubscription), as the converted vars files do (two lookups)
+#   lookup: direct   $(ServiceConnection<ENV>) straight in the step input (one lookup)
+# Run each separately: an unresolved connection fails the whole run before it starts.
+
+trigger: none
+pr: none
+
+resources:
+  repositories:
+    - repository: calculatorFrontend
+      type: github
+      endpoint: DEFRA-ADP
+      name: DEFRA/epr-calculator-frontend
+      ref: refs/heads/main
+
+parameters:
+  - name: env
+    displayName: Environment to test (development environments only)
+    type: string
+    default: DEV7
+    values: [DEV1, DEV2, DEV3, DEV4, DEV7, DEV8, DEV9, DEV14]
+  - name: lookup
+    displayName: How the step gets the service connection
+    type: string
+    default: nested
+    values: [nested, direct]
+
+variables:
+  - template: pipelines/vars/${{ parameters.env }}-development.yaml@calculatorFrontend
+
+jobs:
+  - deployment: DeployAppCode
+    displayName: Deployment job ${{ parameters.env }} (${{ parameters.lookup }})
+    environment: development
+    pool:
+      name: DEFRA-COMMON-UBUNTU-SSV3
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - task: AzureCLI@2
+              displayName: Sign in (${{ parameters.lookup }} lookup)
+              inputs:
+                ${{ if eq(parameters.lookup, 'nested') }}:
+                  azureSubscription: $(azureSubscription)
+                ${{ else }}:
+                  azureSubscription: $(ServiceConnection${{ parameters.env }})
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  echo "azureSubscription = $(azureSubscription)"
+                  az account show --query "{subscription:name, id:id}" --output table
