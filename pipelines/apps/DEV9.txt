@@ -21,8 +21,6 @@ epr-pom-api-submission-status pipelines/vars/DEV9-development.yaml serviceName d
 epr-pom-api-web pipelines/vars/DEV9-development.yaml serviceName devrwdwebwa9409
 epr-pom-func-producer-validation pipelines/vars/DEV9-development.yaml serviceName devrwdwebfa9402
 epr-pom-func-submission-check-splitter pipelines/vars/DEV9-development.yaml serviceName devrwdwebfa9403
-epr-prn-accreditation-facade pipelines/vars/DEV9-development.yaml serviceName devrwdwebwa9417
-epr-prn-accreditation-front-end pipelines/vars/DEV9-development.yaml serviceName devrwdwebwa9420
 epr-prn-common-backend pipelines/vars/DEV9-development.yaml serviceName devrwdwebwa9418
 epr-prn-integration-function pipelines/vars/DEV9-development.yaml serviceName DEVRWDWEBFA9412
 epr-prn-obligationcalculations-function pipelines/vars/DEV9-development.yaml serviceName DEVRWDWEBFA9410
@@ -32,3 +30,7 @@ epr-registration-validation-function-app pipelines/vars/DEV9-development.yaml se
 epr-regulator-service pipelines/vars/DEV9-development.yaml serviceName devrwdwebwa9411
 epr-regulator-service-facade pipelines/vars/DEV9-development.yaml serviceName devrwdwebwa9406
 epr-subsidiary-func-bulk-upload pipelines/vars/DEV9-development.yaml serviceName DEVRWDWEBFA9408
+epr-calculator-api pipelines/vars/DEV9-development.yaml serviceName DEVRWDWEBWA9422
+epr-anti-virus-function-app pipelines/vars/DEV9-development.yaml serviceName devrwdwebfa9405
+epr-packaging-frontend pipelines/vars/DEV9-development.yaml serviceName devrwdwebwa9410
+epr-pom-producer-validation pipelines/vars/DEV9-development.yaml serviceName devrwdwebfa9402

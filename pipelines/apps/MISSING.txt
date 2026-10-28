@@ -1,4 +1,6 @@
-DEV14 epr-prn-accreditation-facade
-DEV14 epr-prn-accreditation-front-end
-DEV15 epr-prn-accreditation-facade
-DEV15 epr-prn-accreditation-front-end
+DEV2 epr-live-service-function-app
+DEV3 epr-live-service-function-app
+DEV7 epr-live-service-function-app
+DEV9 epr-live-service-function-app
+DEV14 epr-live-service-function-app
+DEV15 epr-live-service-function-app

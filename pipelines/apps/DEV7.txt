@@ -21,8 +21,6 @@ epr-pom-api-submission-status pipelines/vars/DEV7-development.yaml serviceName d
 epr-pom-api-web pipelines/vars/DEV7-development.yaml serviceName devrwdwebwa7409
 epr-pom-func-producer-validation pipelines/vars/DEV7-development.yaml serviceName devrwdwebfa7402
 epr-pom-func-submission-check-splitter pipelines/vars/DEV7-development.yaml serviceName devrwdwebfa7403
-epr-prn-accreditation-facade pipelines/vars/DEV7-development.yaml serviceName devrwdwebwa7417
-epr-prn-accreditation-front-end pipelines/vars/DEV7-development.yaml serviceName devrwdwebwa7420
 epr-prn-common-backend pipelines/vars/DEV7-development.yaml serviceName devrwdwebwa7418
 epr-prn-integration-function pipelines/vars/DEV7-development.yaml serviceName DEVRWDWEBFA7412
 epr-prn-obligationcalculations-function pipelines/vars/DEV7-development.yaml serviceName DEVRWDWEBFA7410
@@ -32,3 +30,7 @@ epr-registration-validation-function-app pipelines/vars/DEV7-development.yaml se
 epr-regulator-service pipelines/vars/DEV7-development.yaml serviceName devrwdwebwa7411
 epr-regulator-service-facade pipelines/vars/DEV7-development.yaml serviceName devrwdwebwa7406
 epr-subsidiary-func-bulk-upload pipelines/vars/DEV7-development.yaml serviceName DEVRWDWEBFA7408
+epr-calculator-api pipelines/vars/DEV7-development.yaml serviceName DEVRWDWEBWA7422
+epr-anti-virus-function-app pipelines/vars/DEV7-development.yaml serviceName devrwdwebfa7405
+epr-packaging-frontend pipelines/vars/DEV7-development.yaml serviceName devrwdwebwa7410
+epr-pom-producer-validation pipelines/vars/DEV7-development.yaml serviceName devrwdwebfa7402

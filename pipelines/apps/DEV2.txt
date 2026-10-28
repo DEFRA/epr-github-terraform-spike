@@ -21,8 +21,6 @@ epr-pom-api-submission-status pipelines/vars/DEV2-development.yaml serviceName d
 epr-pom-api-web pipelines/vars/DEV2-development.yaml serviceName devrwdwebwa2409
 epr-pom-func-producer-validation pipelines/vars/DEV2-development.yaml serviceName devrwdwebfa2402
 epr-pom-func-submission-check-splitter pipelines/vars/DEV2-development.yaml serviceName devrwdwebfa2403
-epr-prn-accreditation-facade pipelines/vars/DEV2-development.yaml serviceName devrwdwebwa2417
-epr-prn-accreditation-front-end pipelines/vars/DEV2-development.yaml serviceName devrwdwebwa2420
 epr-prn-common-backend pipelines/vars/DEV2-development.yaml serviceName devrwdwebwa2418
 epr-prn-integration-function pipelines/vars/DEV2-development.yaml serviceName DEVRWDWEBFA2412
 epr-prn-obligationcalculations-function pipelines/vars/DEV2-development.yaml serviceName DEVRWDWEBFA2410
@@ -32,3 +30,7 @@ epr-registration-validation-function-app pipelines/vars/DEV2-development.yaml se
 epr-regulator-service pipelines/vars/DEV2-development.yaml serviceName devrwdwebwa2411
 epr-regulator-service-facade pipelines/vars/DEV2-development.yaml serviceName devrwdwebwa2406
 epr-subsidiary-func-bulk-upload pipelines/vars/DEV2-development.yaml serviceName DEVRWDWEBFA2408
+epr-calculator-api pipelines/vars/DEV2-development.yaml serviceName DEVRWDWEBWA2422
+epr-anti-virus-function-app pipelines/vars/DEV2-development.yaml serviceName devrwdwebfa2405
+epr-packaging-frontend pipelines/vars/DEV2-development.yaml serviceName devrwdwebwa2410
+epr-pom-producer-validation pipelines/vars/DEV2-development.yaml serviceName devrwdwebfa2402

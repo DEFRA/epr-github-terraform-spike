@@ -30,3 +30,7 @@ epr-registration-validation-function-app pipelines/vars/DEV15.yaml serviceName D
 epr-regulator-service pipelines/vars/DEV15.yaml serviceName DEVRWDWEBWAF411
 epr-regulator-service-facade pipelines/vars/DEV15.yaml serviceName DEVRWDWEBWAF406
 epr-subsidiary-func-bulk-upload pipelines/vars/DEV15-development.yaml serviceName DEVRWDWEBFAF408
+epr-calculator-api pipelines/vars/DEV15.yaml serviceName DEVRWDWEBWAF422
+epr-anti-virus-function-app pipelines/vars/DEV15-development.yaml serviceName DEVRWDWEBFAF405
+epr-packaging-frontend pipelines/vars/DEV15.yaml serviceName devrwdwebwaf410
+epr-pom-producer-validation pipelines/vars/DEV15.yaml serviceName DEVRWDWEBFAF402
