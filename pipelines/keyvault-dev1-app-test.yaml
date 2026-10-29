@@ -1,0 +1,43 @@
+# Test pipeline: can AZD-RWD-DEV1-APP read every secret the shared templates fetch from
+# DEVRWDINFKV1401? epr-webapps-code-deploy-templates hardcodes 'AZD-RWD-DEV1' for these Key Vault
+# steps; the ELSP-371 change moves them to 'AZD-RWD-DEV1-APP'.
+#
+#   DockerPassword                     deployment.yaml, epr-funcs-deployment-pipeline.yaml,
+#                                      docker-run-sql-migration.yaml (non-development deploys)
+#   EPRADO-SonarQubeToken              analyse-and-test.yaml (every CI build)
+#   TeamsNotificationWebhook           deployment.yaml (DEV4 deploy notification)
+#
+# Read-only: fetches the secrets (masked in the log) and checks each one is set. Nothing is
+# deployed, pushed or sent.
+
+trigger: none
+pr: none
+
+pool: DEFRA-COMMON-UBUNTU-SSV3
+
+jobs:
+  - job: KeyVaultDev1App
+    displayName: Key Vault DEVRWDINFKV1401 with AZD-RWD-DEV1-APP
+    steps:
+      - checkout: none
+
+      - task: AzureKeyVault@2
+        displayName: Obtain secrets
+        inputs:
+          azureSubscription: 'AZD-RWD-DEV1-APP'
+          KeyVaultName: 'DEVRWDINFKV1401'
+          SecretsFilter: 'DockerPassword, EPRADO-SonarQubeToken, TeamsNotificationWebhook'
+
+      - bash: |
+          failed=0
+          # An unfetched secret stays as the literal "$(Name)", so treat that as missing too
+          check() { case "$2" in ''|'$('*) echo "##vso[task.logissue type=error]$1: missing"; failed=1;; *) echo "$1: set";; esac; }
+          check DockerPassword "$DOCKER_PASSWORD"
+          check EPRADO-SonarQubeToken "$SONAR_TOKEN"
+          check TeamsNotificationWebhook "$TEAMS_WEBHOOK"
+          exit $failed
+        displayName: Check each secret is set
+        env:
+          DOCKER_PASSWORD: $(DockerPassword)
+          SONAR_TOKEN: $(EPRADO-SonarQubeToken)
+          TEAMS_WEBHOOK: $(TeamsNotificationWebhook)
