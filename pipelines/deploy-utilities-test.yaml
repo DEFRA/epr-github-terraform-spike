@@ -95,6 +95,12 @@ jobs:
             rg_id=$(az group show --name $(webRg) --query id -o tsv)
             az role assignment list --assignee "$servicePrincipalId" --scope "$rg_id" --include-inherited \
               --query "[].{role:roleDefinitionName, scope:scope}" -o table
+            echo "Web app actions in those roles (restart needs Microsoft.Web/sites/restart/action or Microsoft.Web/sites/*):"
+            az role assignment list --assignee "$servicePrincipalId" --scope "$rg_id" --include-inherited --query "[].roleDefinitionName" -o tsv \
+              | while read -r role; do
+                  echo "== $role"
+                  az role definition list --name "$role" --query "[].permissions[].actions[]" -o tsv | grep -i -E "Microsoft\.Web|^\*$" || echo "(no Microsoft.Web actions)"
+                done
 
       - task: AzureCLI@2
         displayName: shutter-page.yaml fix - storage $(shutterStorage) ($web)
