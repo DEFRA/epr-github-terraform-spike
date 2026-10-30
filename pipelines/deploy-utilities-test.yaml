@@ -1,0 +1,134 @@
+# Test pipeline: can the -APP service connections do what epr-webapps-code-deploy-pipelines,
+# epr-web-shutter-screen-pages, epr-rpd-azure-ad-b2c-styling and the restart-service / shutter-page
+# templates need, once they take the connection from the shared ServiceConnections library?
+#
+#   Old templates               restart-service.yaml passed `--subscription <connection name>` and
+#                               shutter-page.yaml ran `az account set -s <connection name>`. Runs that
+#                               same `az account set` with the -APP name: expected to fail, which is
+#                               why the templates fix (fix/ELSP-371-subscription-from-service-connection)
+#                               drops both.
+#   restart-service.yaml fix    The fixed command without --subscription, minus the restart:
+#                               az webapp show --name --resource-group, plus the connection's role
+#                               assignments on the resource group (restart needs write on the web app)
+#   shutter-page.yaml fix       The fixed upload without az account set, minus the upload: upload-batch
+#                               authenticates with the account key, so list $web the same way (proves
+#                               listKeys, which gives write); also tried with --auth-mode login
+#   B2C styling container       epr-rpd-azure-ad-b2c-styling: same storage account, its own container
+#                               (b2c-styling-files on TST1, epr-account-styling on PRE1)
+#   Registry                    pipeline-put-lock-on-image.yaml / epr-delete-acr-images.yaml:
+#                               az acr login + list repositories (nothing locked or deleted)
+#
+# Read-only: nothing is restarted, uploaded, locked or deleted. Each check runs on its own and
+# reports; one failing doesn't stop the others.
+
+trigger: none
+pr: none
+
+pool: DEFRA-COMMON-UBUNTU-SSV3
+
+parameters:
+  - name: env
+    displayName: Environment to test (PRD1 not included)
+    type: string
+    default: TST1
+    values: [DEV1, TST1, PRE1]
+
+variables:
+  - group: ServiceConnections
+  - ${{ if eq(parameters.env, 'DEV1') }}:
+    - { name: acr, value: devrwdinfac1401 }
+    - { name: webApp, value: DEVRWDWEBWA1410 }
+    - { name: webRg, value: DEVRWDWEBRG1401 }
+    - { name: shutterStorage, value: devrwddbssa1402 }
+    - { name: b2cContainer, value: b2c-styling-files }
+  - ${{ if eq(parameters.env, 'TST1') }}:
+    - { name: acr, value: tstrwdinfac1401 }
+    - { name: webApp, value: TSTRWDWEBWA1410 }
+    - { name: webRg, value: TSTRWDWEBRG1401 }
+    - { name: shutterStorage, value: tstrwddbssa1402 }
+    - { name: b2cContainer, value: b2c-styling-files }
+  - ${{ if eq(parameters.env, 'PRE1') }}:
+    - { name: acr, value: prerwdinfac1401 }
+    - { name: webApp, value: PRERWDWEBWA1410 }
+    - { name: webRg, value: PRERWDWEBRG1401 }
+    - { name: shutterStorage, value: prerwddbssa1402 }
+    - { name: b2cContainer, value: epr-account-styling }
+
+jobs:
+  - job: DeployUtilities
+    displayName: Deploy utilities ${{ parameters.env }}
+    steps:
+      - checkout: none
+
+      - task: AzureCLI@2
+        displayName: Old templates - connection name as subscription
+        continueOnError: true
+        env:
+          CONNECTION: $(ServiceConnection${{ parameters.env }})
+        inputs:
+          azureSubscription: $(ServiceConnection${{ parameters.env }})
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            echo "Connection: $CONNECTION"
+            az account show --query "{subscription:name, id:id}" -o table
+            echo "Running what the old templates ran: az account set -s $CONNECTION"
+            if az account set -s "$CONNECTION"; then
+              echo "Resolves - the old templates would still work with this connection"
+            else
+              echo "##vso[task.logissue type=warning]'$CONNECTION' is not a subscription name: the old restart-service / shutter-page templates fail with this connection; the fix is needed"
+            fi
+
+      - task: AzureCLI@2
+        displayName: restart-service.yaml fix - web app $(webApp)
+        continueOnError: true
+        inputs:
+          azureSubscription: $(ServiceConnection${{ parameters.env }})
+          addSpnToEnvironment: true
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            set -e
+            # Same arguments as the fixed az webapp restart, without --subscription
+            az webapp show --name $(webApp) --resource-group $(webRg) --query "{name:name, state:state}" -o table
+            echo "Roles for this connection on $(webRg) (restart needs Contributor / Website Contributor or similar):"
+            rg_id=$(az group show --name $(webRg) --query id -o tsv)
+            az role assignment list --assignee "$servicePrincipalId" --scope "$rg_id" --include-inherited \
+              --query "[].{role:roleDefinitionName, scope:scope}" -o table
+
+      - task: AzureCLI@2
+        displayName: shutter-page.yaml fix - storage $(shutterStorage) ($web)
+        continueOnError: true
+        inputs:
+          azureSubscription: $(ServiceConnection${{ parameters.env }})
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            failed=0
+            echo "Account key (how the fixed upload-batch authenticates, without az account set):"
+            az storage blob list --container-name '$web' --account-name $(shutterStorage) --num-results 5 --query "[].name" -o tsv || failed=1
+            echo "Azure AD (--auth-mode login):"
+            az storage blob list --container-name '$web' --account-name $(shutterStorage) --num-results 5 --auth-mode login --query "[].name" -o tsv || echo "##vso[task.logissue type=warning]--auth-mode login not allowed (not used by the templates)"
+            exit $failed
+
+      - task: AzureCLI@2
+        displayName: B2C styling $(shutterStorage) ($(b2cContainer))
+        continueOnError: true
+        inputs:
+          azureSubscription: $(ServiceConnection${{ parameters.env }})
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            az storage blob list --container-name '$(b2cContainer)' --account-name $(shutterStorage) --num-results 5 --query "[].name" -o tsv
+
+      - task: AzureCLI@2
+        displayName: Registry $(acr) (lock / delete images)
+        continueOnError: true
+        inputs:
+          azureSubscription: $(ServiceConnection${{ parameters.env }})
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            set -e
+            az acr login --name $(acr)
+            az acr repository list --name $(acr) --top 5 -o tsv
