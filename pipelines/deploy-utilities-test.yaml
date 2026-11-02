@@ -120,7 +120,7 @@ jobs:
             if [ -n "$sa_id" ]; then
               echo "2. Microsoft.Storage/storageAccounts/listKeys/action (get the key upload-batch uses; key names only):"
               az storage account keys list --account-name $(shutterStorage) --resource-group "$(echo "$sa_id" | cut -d/ -f5)" --query "[].keyName" -o tsv \
-                || { echo "##vso[task.logissue type=warning]MISSING: Microsoft.Storage/storageAccounts/listKeys/action on $(shutterStorage)"; failed=1; }
+                || echo "No listKeys on $(shutterStorage): expected, uploads use --auth-mode login"
               echo "Roles for this connection on $(shutterStorage) and what they grant:"
               az role assignment list --assignee "$servicePrincipalId" --scope "$sa_id" --include-inherited --query "[].roleDefinitionName" -o tsv \
                 | sort -u | while read -r role; do
