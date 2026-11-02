@@ -119,7 +119,7 @@ jobs:
             if [ -n "$sa_id" ]; then echo "OK: $sa_id"; else echo "##vso[task.logissue type=warning]MISSING: Microsoft.Storage/storageAccounts/read on $(shutterStorage)"; failed=1; fi
             if [ -n "$sa_id" ]; then
               echo "2. Microsoft.Storage/storageAccounts/listKeys/action (get the key upload-batch uses; key names only):"
-              az storage account keys list --ids "$sa_id" --query "[].keyName" -o tsv \
+              az storage account keys list --account-name $(shutterStorage) --resource-group "$(echo "$sa_id" | cut -d/ -f5)" --query "[].keyName" -o tsv \
                 || { echo "##vso[task.logissue type=warning]MISSING: Microsoft.Storage/storageAccounts/listKeys/action on $(shutterStorage)"; failed=1; }
               echo "Roles for this connection on $(shutterStorage) and what they grant:"
               az role assignment list --assignee "$servicePrincipalId" --scope "$sa_id" --include-inherited --query "[].roleDefinitionName" -o tsv \
