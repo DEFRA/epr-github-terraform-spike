@@ -107,11 +107,29 @@ jobs:
         continueOnError: true
         inputs:
           azureSubscription: $(ServiceConnection${{ parameters.env }})
+          addSpnToEnvironment: true
           scriptType: bash
           scriptLocation: inlineScript
           inlineScript: |
             failed=0
-            echo "Account key (how the fixed upload-batch authenticates, without az account set):"
+            # upload-batch without a key or --auth-mode looks the account up, then fetches its key.
+            # Check each permission on its own so the missing one is named.
+            echo "1. Microsoft.Storage/storageAccounts/read (find the account):"
+            sa_id=$(az storage account list --query "[?name=='$(shutterStorage)'].id" -o tsv)
+            if [ -n "$sa_id" ]; then echo "OK: $sa_id"; else echo "##vso[task.logissue type=warning]MISSING: Microsoft.Storage/storageAccounts/read on $(shutterStorage)"; failed=1; fi
+            if [ -n "$sa_id" ]; then
+              echo "2. Microsoft.Storage/storageAccounts/listKeys/action (get the key upload-batch uses; key names only):"
+              az storage account keys list --ids "$sa_id" --query "[].keyName" -o tsv \
+                || { echo "##vso[task.logissue type=warning]MISSING: Microsoft.Storage/storageAccounts/listKeys/action on $(shutterStorage)"; failed=1; }
+              echo "Roles for this connection on $(shutterStorage) and what they grant:"
+              az role assignment list --assignee "$servicePrincipalId" --scope "$sa_id" --include-inherited --query "[].roleDefinitionName" -o tsv \
+                | sort -u | while read -r role; do
+                    echo "== $role"
+                    az role definition list --name "$role" --query "[].permissions[].{actions:actions, dataActions:dataActions}" -o json \
+                      | grep -i -E "storage|\"\*\"" || echo "(no storage actions)"
+                  done
+            fi
+            echo "3. Account key (how the fixed upload-batch authenticates, without az account set):"
             az storage blob list --container-name '$web' --account-name $(shutterStorage) --num-results 5 --query "[].name" -o tsv || failed=1
             echo "Azure AD (--auth-mode login):"
             az storage blob list --container-name '$web' --account-name $(shutterStorage) --num-results 5 --auth-mode login --query "[].name" -o tsv || echo "##vso[task.logissue type=warning]--auth-mode login not allowed (not used by the templates)"
