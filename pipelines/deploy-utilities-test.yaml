@@ -131,8 +131,9 @@ jobs:
             fi
             echo "3. Account key (how the fixed upload-batch authenticates, without az account set):"
             az storage blob list --container-name '$web' --account-name $(shutterStorage) --num-results 5 --query "[].name" -o tsv || failed=1
-            echo "Azure AD (--auth-mode login):"
-            az storage blob list --container-name '$web' --account-name $(shutterStorage) --num-results 5 --auth-mode login --query "[].name" -o tsv || echo "##vso[task.logissue type=warning]--auth-mode login not allowed (not used by the templates)"
+            echo "4. Azure AD (--auth-mode login, Storage Blob Data Contributor):"
+            az storage blob list --container-name '$web' --account-name $(shutterStorage) --num-results 5 --auth-mode login --query "[].name" -o tsv \
+              || { echo "##vso[task.logissue type=warning]MISSING: Storage Blob Data role on $(shutterStorage)"; failed=1; }
             exit $failed
 
       - task: AzureCLI@2
@@ -143,7 +144,8 @@ jobs:
           scriptType: bash
           scriptLocation: inlineScript
           inlineScript: |
-            az storage blob list --container-name '$(b2cContainer)' --account-name $(shutterStorage) --num-results 5 --query "[].name" -o tsv
+            # Private container: listing proves the Storage Blob Data role is in effect
+            az storage blob list --container-name '$(b2cContainer)' --account-name $(shutterStorage) --num-results 5 --auth-mode login --query "[].name" -o tsv
 
       - task: AzureCLI@2
         displayName: Registry $(acr) (lock / delete images)
