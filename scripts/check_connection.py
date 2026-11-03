@@ -48,16 +48,24 @@ APP_ACTIONS = [
     "Microsoft.Web/sites/restart/action",
 ]
 
+# Repos whose findings are already known and not for the service connection team.
+KNOWN = {
+    "epr-prn-rep-exp-facade": "apps do not exist; waiting on the archiving decision",
+    "epr-prn-rep-exp-frontend": "apps do not exist; waiting on the archiving decision",
+}
+
 rows = []
 
 
 def row(status, area, resource, needed_by, detail):
+    if needed_by in KNOWN and status in ("MISSING", "WARN"):
+        status, detail = "KNOWN", f"{detail} ({KNOWN[needed_by]})"
     rows.append((status, area, resource, needed_by, detail))
-    print(f"{status:8} {area:10} {resource:32} {detail}")
+    print(f"{status:8} {area:10} {resource:32} {detail} [{needed_by}]")
     if status == "MISSING":
         print(f"##vso[task.logissue type=error]{area} {resource}: {detail} (needed by {needed_by})")
     elif status == "WARN":
-        print(f"##vso[task.logissue type=warning]{area} {resource}: {detail}")
+        print(f"##vso[task.logissue type=warning]{area} {resource}: {detail} ({needed_by})")
 
 
 def az(*args):
@@ -137,7 +145,7 @@ for repo, file, key, app in resources:
         continue
     site = visible.get(app.lower())
     if site:
-        by_rg[site["rg"]].append((repo, site))
+        by_rg[site["rg"].upper()].append((repo, site))
     else:
         row("MISSING", "App", app, repo, "not visible to the connection - deploy and restart fail")
 for rg, apps in sorted(by_rg.items()):
@@ -164,7 +172,7 @@ for acr, repos in sorted(registries.items()):
     if login.returncode != 0:
         row("MISSING", "Registry", acr, join(repos), f"az acr login failed: {short(login.stderr)}")
     elif "admin" in text.lower() or "401" in text:
-        row("MISSING", "Registry", acr, join(repos), "Azure AD login refused (401) - only works through the admin user")
+        row("MISSING", "Registry", acr, join(repos), "Azure AD login refused (401) - only works through the admin user (AcrPull fixes it)")
     else:
         row("OK", "Registry", acr, join(repos), "Azure AD login")
     rc, reg, err = az("acr", "show", "--name", acr, "--query", "{id:id}")
@@ -219,11 +227,12 @@ if ENV in STORAGE:
 # Summary
 missing = sum(r[0] == "MISSING" for r in rows)
 warn = sum(r[0] == "WARN" for r in rows)
+known = sum(r[0] == "KNOWN" for r in rows)
 ok = sum(r[0] == "OK" for r in rows)
-headline = f"{ENV} {CONNECTION}: {missing} missing, {warn} warnings, {ok} OK"
+headline = f"{ENV} {CONNECTION}: {missing} missing, {warn} warnings, {known} known, {ok} OK"
 print(f"\n##[section]{headline}")
 print(f"##vso[build.updatebuildnumber]{os.environ.get('BUILD_BUILDID', '')} {ENV} {missing} missing {warn} warnings")
-order = {"MISSING": 0, "WARN": 1, "INFO": 2, "OK": 3}
+order = {"MISSING": 0, "WARN": 1, "KNOWN": 2, "INFO": 3, "OK": 4}
 with open(SUMMARY, "w") as f:
     f.write(f"### {headline}\n\n| Result | Area | Resource | Needed by | Detail |\n|---|---|---|---|---|\n")
     for status, area, resource, needed_by, detail in sorted(rows, key=lambda r: (order[r[0]], r[1])):
