@@ -1,5 +1,7 @@
+epr-anti-virus-function-app pipelines/vars/DEV3-development.yaml serviceName devrwdwebfa3405
 epr-backend-account-microservice pipelines/vars/DEV3-development.yaml serviceName devrwdwebwa3407
 epr-backend-account-microservice pipelines/vars/DEV3-development.yaml validationApiServiceName devrwdwebfa3407
+epr-calculator-api pipelines/vars/DEV3-development.yaml serviceName DEVRWDWEBWA3422
 epr-calculator-frontend pipelines/vars/DEV3-development.yaml serviceName DEVRWDWEBWA3421
 epr-calculator-fss-api pipelines/vars/DEV3-development.yaml serviceName devrwdwebwa3426
 epr-calculator-service pipelines/vars/DEV3-development.yaml serviceName DEVRWDWEBFA3411
@@ -13,6 +15,7 @@ epr-frontend-accountmanagement-microservice pipelines/vars/DEV3-development.yaml
 epr-frontend-accountmanagement-microservice pipelines/vars-regulator/DEV3-development.yaml serviceName devrwdwebwa3412
 epr-logging-api pipelines/vars/DEV3-development.yaml serviceName devrwdwebwa3403
 epr-obligationchecker-frontend vars/DEV3-development.yaml serviceName devrwdwebwa3401
+epr-packaging-frontend pipelines/vars/DEV3-development.yaml serviceName devrwdwebwa3410
 epr-payment-facade pipelines/vars/DEV3-development.yaml serviceName devrwdwebwa3424
 epr-payment-frontend pipelines/vars/DEV3-development.yaml serviceName DEVRWDWEBWA3423
 epr-payment-mopup pipelines/vars/DEV3-development.yaml serviceName DEVRWDWEBFA3409
@@ -21,6 +24,7 @@ epr-pom-api-submission-status pipelines/vars/DEV3-development.yaml serviceName d
 epr-pom-api-web pipelines/vars/DEV3-development.yaml serviceName devrwdwebwa3409
 epr-pom-func-producer-validation pipelines/vars/DEV3-development.yaml serviceName devrwdwebfa3402
 epr-pom-func-submission-check-splitter pipelines/vars/DEV3-development.yaml serviceName devrwdwebfa3403
+epr-pom-producer-validation pipelines/vars/DEV3-development.yaml serviceName devrwdwebfa3402
 epr-prn-common-backend pipelines/vars/DEV3-development.yaml serviceName devrwdwebwa3418
 epr-prn-integration-function pipelines/vars/DEV3-development.yaml serviceName DEVRWDWEBFA3412
 epr-prn-obligationcalculations-function pipelines/vars/DEV3-development.yaml serviceName DEVRWDWEBFA3410
@@ -30,7 +34,3 @@ epr-registration-validation-function-app pipelines/vars/DEV3-development.yaml se
 epr-regulator-service pipelines/vars/DEV3-development.yaml serviceName devrwdwebwa3411
 epr-regulator-service-facade pipelines/vars/DEV3-development.yaml ServiceName devrwdwebwa3406
 epr-subsidiary-func-bulk-upload pipelines/vars/DEV3-development.yaml serviceName DEVRWDWEBFA3408
-epr-calculator-api pipelines/vars/DEV3-development.yaml serviceName DEVRWDWEBWA3422
-epr-anti-virus-function-app pipelines/vars/DEV3-development.yaml serviceName devrwdwebfa3405
-epr-packaging-frontend pipelines/vars/DEV3-development.yaml serviceName devrwdwebwa3410
-epr-pom-producer-validation pipelines/vars/DEV3-development.yaml serviceName devrwdwebfa3402
