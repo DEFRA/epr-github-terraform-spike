@@ -1,10 +1,10 @@
 """Read-only check of everything the EPR pipelines use one environment's service connection for.
 
 Run by pipelines/service-connection-check.yaml inside AzureCLI@2 (signed in as the connection,
-addSpnToEnvironment: true). Reads pipelines/resources/<ENV>.txt (from scripts/list_apps.py) and
+addSpnToEnvironment: true). Reads pipelines/resources/<ENV>.txt (from scripts/list_resources.py) and
 checks, without changing anything:
 
-  Library     ServiceConnection<ENV> in the ServiceConnections library is the -APP connection
+  Library     ServiceConnection<ENV> in the ServiceConnections library is the new connection (-APP)
   Repo vars   no repo's vars file still names a connection directly
   Apps        every repo's web/function app is visible (deploy, restart) and the connection's
               roles on it allow what the deploy templates do
@@ -49,8 +49,10 @@ APP_ACTIONS = [
     "Microsoft.Web/sites/restart/action",
 ]
 
-# Repos left out: not part of the -APP move (apps do not exist; archiving is another team's call).
-EXCLUDED = {"epr-prn-rep-exp-facade", "epr-prn-rep-exp-frontend"}
+# Repos left out of the check:
+#   epr-prn-rep-exp-*                   apps do not exist; archiving is another team's call
+#   epr-webapps-code-deploy-pipelines   unused utilities (vars/ only read by delete-acr-images)
+EXCLUDED = {"epr-prn-rep-exp-facade", "epr-prn-rep-exp-frontend", "epr-webapps-code-deploy-pipelines"}
 
 rows = []
 

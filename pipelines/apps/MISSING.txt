@@ -1,7 +1,0 @@
-DEV2 epr-live-service-function-app
-DEV3 epr-live-service-function-app
-DEV7 epr-live-service-function-app
-DEV9 epr-live-service-function-app
-DEV14 epr-live-service-function-app
-DEV15 epr-live-service-function-app
-PRE2 epr-live-service-function-app

@@ -116,3 +116,5 @@ epr-regulator-service-facade pipelines/vars/tst.yaml serviceName tstrwdwebwa1406
 epr-subsidiary-func-bulk-upload pipelines/vars/tst.yaml azureSubscription $(ServiceConnectionTST1)
 epr-subsidiary-func-bulk-upload pipelines/vars/tst.yaml acr.azureContainerRegistryName tstrwdinfac1401
 epr-subsidiary-func-bulk-upload pipelines/vars/tst.yaml serviceName TSTRWDWEBFA1408
+epr-webapps-code-deploy-pipelines vars/tst.yaml azureSubscription AZD-RWD-TST1
+epr-webapps-code-deploy-pipelines vars/tst.yaml acr.azureContainerRegistryName tstrwdinfac1401
