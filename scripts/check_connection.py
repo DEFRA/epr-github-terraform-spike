@@ -187,7 +187,7 @@ for acr, repos in sorted(registries.items()):
             row("MISSING", "Registry", acr, join(repos),
                 login_problem + ("; registry is in another subscription" if elsewhere else ""), f"AcrPull on {acr}")
         elif elsewhere:
-            row("OK", "Registry", acr, join(repos), "Azure AD login (registry is in another subscription; roles not checked)")
+            row("INFO", "Registry", acr, join(repos), "registry is in another subscription; pull/push roles not checked")
         if not elsewhere:
             row("MISSING", "Registry", acr, join(repos), f"cannot read the registry: {short(err)}",
                 f"Microsoft.ContainerRegistry/registries/read on {acr}")
