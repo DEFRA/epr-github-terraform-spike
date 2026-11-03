@@ -12,10 +12,15 @@ checks, without changing anything:
               migration), import (Copy Image, TST/PRE) and push (CI, DEV4)
   Key Vault   the SQL admin secret can be read (docker-run-sql-migration.yaml)
   Storage     shutter page $web and B2C styling containers can be used with --auth-mode login
+  Copy Image  without the AZD-RWD-DEV1 Key Vault step (templates branch
+              chore/ELSP-371-remove-dev1-keyvault-steps) TST/PRE import from the DEV registry as
+              the connection: it needs pull there, and the templates' registry id must be right
+  SonarQube   (sonarGroup parameter) the variable group gives a valid EPRADO-SonarQubeToken
 
 Prints one line per check, raises a pipeline error for each MISSING, and writes a markdown
 summary (shown on the run's summary page). Never prints secret values.
 """
+import base64
 import collections
 import fnmatch
 import json
@@ -23,6 +28,9 @@ import os
 import subprocess
 import sys
 import textwrap
+import urllib.error
+import urllib.parse
+import urllib.request
 
 ENV = os.environ["ENV"]
 CONNECTION = os.environ["CONNECTION"]
@@ -30,6 +38,8 @@ EXPECTED = os.environ["EXPECTED_CONNECTION"]
 LIBRARY_VALUE = os.environ["LIBRARY_VALUE"]
 SPN = os.environ.get("servicePrincipalId", "")
 SUMMARY = os.environ["SUMMARY_FILE"]
+SONAR_GROUP = os.environ.get("SONAR_GROUP", "none")
+SONAR_TOKEN = os.environ.get("SONAR_TOKEN", "")
 RESOURCES = os.path.join(os.path.dirname(__file__), "..", "pipelines", "resources", f"{ENV}.txt")
 
 # Where the shutter page and B2C styling upload (no other environment has them, PRD1 not tested).
@@ -40,6 +50,10 @@ STORAGE = {
     "PRE1": ("prerwddbssa1402", {"$web": "epr-web-shutter-screen-pages",
                                  "epr-account-styling": "epr-rpd-azure-ad-b2c-styling"}),
 }
+# The DEV registry Copy Image imports from, as the templates name it in az acr import --registry.
+SOURCE_REGISTRY = ("/subscriptions/8f549c59-2438-4495-b571-705081e497e4/resourceGroups/DEVRWDINFRG1401"
+                   "/providers/Microsoft.ContainerRegistry/registries/devrwdinfac1401")
+SONAR_URL = "https://vss-sonarqube.azure.defra.cloud"
 # What epr-webapps-code-deploy-templates does to each app: get-current-dockertag (read),
 # AzureRmWebAppDeployment@4 webAppContainer (config write, publishing credentials), restart.
 APP_ACTIONS = [
@@ -219,6 +233,68 @@ for acr, repos in sorted(registries.items()):
             row("MISSING", "Registry", acr, join(repos), problem, f"{ask} on {acr}")
     if login_problem:
         row("MISSING", "Registry", acr, join(repos), login_problem, f"AcrPull on {acr}")
+
+# Copy Image without the DockerPassword Key Vault step: az acr import --registry <DEV registry id>
+# runs as this connection, so TST/PRE connections need pull on the DEV registry.
+source = SOURCE_REGISTRY.rsplit("/", 1)[1]
+repos = [r for acr, rs in registries.items() for r in rs]
+if source in registries:
+    # Only the DEV1 subscription can see the registry: check the id the templates use.
+    rc, reg_id, _ = az("acr", "show", "--name", source, "--query", "id")
+    if rc == 0 and reg_id:
+        if reg_id.lower() == SOURCE_REGISTRY.lower():
+            row("OK", "Copy Image", source, "templates", "registry id in the templates is right")
+        else:
+            row("MISSING", "Copy Image", source, "templates", "registry id in the templates is wrong",
+                f"use {reg_id} in az acr import --registry")
+elif repos:
+    repository = next((v for _, _, k, v in resources if k == "acr.repositoryName"), None)
+    login = subprocess.run(["az", "acr", "login", "--name", source, "--expose-token", "--only-show-errors", "-o", "json"],
+                           capture_output=True, text=True)
+    problem = None
+    if login.returncode != 0:
+        problem = ("Azure AD login refused (401)" if "401" in login.stderr
+                   else f"az acr login failed: {short(login.stderr)}")
+    elif repository:
+        host = f"{source}.azurecr.io"
+        try:
+            form = urllib.parse.urlencode({"grant_type": "refresh_token", "service": host,
+                                           "scope": f"repository:{repository}:pull",
+                                           "refresh_token": json.loads(login.stdout)["accessToken"]}).encode()
+            access = json.load(urllib.request.urlopen(f"https://{host}/oauth2/token", form, timeout=30))["access_token"]
+            urllib.request.urlopen(urllib.request.Request(f"https://{host}/v2/{repository}/tags/list?n=1",
+                                                          headers={"Authorization": f"Bearer {access}"}), timeout=30)
+        except urllib.error.HTTPError as e:
+            problem = f"cannot pull {repository} ({e.code})"
+        except Exception as e:
+            problem = f"could not check: {str(e)[:150]}"
+    if problem is None:
+        row("OK", "Copy Image", source, join(repos), f"can pull {repository or '(login only)'} as the connection")
+    elif problem.startswith("could not check"):
+        row("WARN", "Copy Image", source, join(repos), problem, "check by hand")
+    else:
+        row("MISSING", "Copy Image", source, join(repos), f"{problem} - import without the Docker password fails",
+            f"AcrPull on {source}")
+
+# SonarQube token from the variable group that replaces the AZD-RWD-DEV1 Key Vault step (CI builds)
+if SONAR_GROUP != "none":
+    needed_by = "CI builds (epr-build-pipeline, epr-common)"
+    if not SONAR_TOKEN or SONAR_TOKEN.startswith("$("):
+        row("MISSING", "SonarQube", SONAR_GROUP, needed_by, "EPRADO-SonarQubeToken not in the group",
+            "link the group to DEVRWDINFKV1401 and add EPRADO-SonarQubeToken")
+    else:
+        auth = "Basic " + base64.b64encode(f"{SONAR_TOKEN}:".encode()).decode()
+        try:
+            valid = json.load(urllib.request.urlopen(urllib.request.Request(
+                f"{SONAR_URL}/api/authentication/validate", headers={"Authorization": auth}), timeout=30)).get("valid")
+        except Exception as e:
+            valid = None
+            row("WARN", "SonarQube", SONAR_GROUP, needed_by, f"could not check the token: {str(e)[:150]}", "check by hand")
+        if valid:
+            row("OK", "SonarQube", SONAR_GROUP, needed_by, "EPRADO-SonarQubeToken is valid")
+        elif valid is False:
+            row("MISSING", "SonarQube", SONAR_GROUP, needed_by, "EPRADO-SonarQubeToken is not valid",
+                "check the secret in DEVRWDINFKV1401")
 
 # Key Vault (SQL migrations read the admin login with the app's connection)
 vaults = collections.defaultdict(list)

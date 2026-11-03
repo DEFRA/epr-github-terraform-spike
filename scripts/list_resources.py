@@ -1,5 +1,5 @@
 """Write pipelines/resources/<ENV>.txt for pipelines/service-connection-check.yaml: per environment,
-each EPR repo's web/function apps, registry, Key Vault and service connection variables, read from
+each EPR repo's web/function apps, registry and repository, Key Vault and service connection variables, read from
 the vars files on each repo's origin/main (fetched first; working trees are not used).
 
 usage: python3 scripts/list_resources.py <clones-dir> [<repo> ...]
@@ -15,7 +15,7 @@ import yaml
 
 ENVS = ["DEV1", "DEV2", "DEV3", "DEV4", "DEV7", "DEV8", "DEV9", "DEV14", "DEV15", "TST1", "PRE1", "PRE2"]
 VARS_DIRS = ["pipelines/vars", "vars", "pipelines/vars-regulator"]
-KEYS = r"servicename$|^acr\.azureContainerRegistryName$|^kvName$|^azureSubscription$|^acr\.Subscription$"
+KEYS = r"servicename$|^acr\.azureContainerRegistryName$|^acr\.repositoryName$|^kvName$|^azureSubscription$|^acr\.Subscription$"
 OUT = os.path.join(os.path.dirname(__file__), "..", "pipelines", "resources")
 
 
