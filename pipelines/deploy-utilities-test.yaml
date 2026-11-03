@@ -32,9 +32,20 @@ parameters:
     type: string
     default: TST1
     values: [DEV1, DEV9, TST1, PRE1, PRE2]
+  - name: appConnection
+    displayName: Use the -APP connection directly (for DEV9 / PRE2, still on the old connection in the library)
+    type: boolean
+    default: false
 
 variables:
   - group: ServiceConnections
+  - ${{ if parameters.appConnection }}:
+    - ${{ if startsWith(parameters.env, 'PRE') }}:
+      - { name: connection, value: 'AZR-RWD-${{ parameters.env }}-APP' }
+    - ${{ else }}:
+      - { name: connection, value: 'AZD-RWD-${{ parameters.env }}-APP' }
+  - ${{ else }}:
+    - { name: connection, value: '$(ServiceConnection${{ parameters.env }})' }
   - ${{ if eq(parameters.env, 'DEV1') }}:
     - { name: acr, value: devrwdinfac1401 }
     - { name: webApp, value: DEVRWDWEBWA1410 }
@@ -72,9 +83,9 @@ jobs:
         displayName: Old templates - connection name as subscription
         continueOnError: true
         env:
-          CONNECTION: $(ServiceConnection${{ parameters.env }})
+          CONNECTION: $(connection)
         inputs:
-          azureSubscription: $(ServiceConnection${{ parameters.env }})
+          azureSubscription: $(connection)
           scriptType: bash
           scriptLocation: inlineScript
           inlineScript: |
@@ -91,7 +102,7 @@ jobs:
         displayName: restart-service.yaml fix - web app $(webApp)
         continueOnError: true
         inputs:
-          azureSubscription: $(ServiceConnection${{ parameters.env }})
+          azureSubscription: $(connection)
           addSpnToEnvironment: true
           scriptType: bash
           scriptLocation: inlineScript
@@ -120,7 +131,7 @@ jobs:
           displayName: shutter-page.yaml fix - storage $(shutterStorage) ($web)
           continueOnError: true
           inputs:
-            azureSubscription: $(ServiceConnection${{ parameters.env }})
+            azureSubscription: $(connection)
             addSpnToEnvironment: true
             scriptType: bash
             scriptLocation: inlineScript
@@ -156,7 +167,7 @@ jobs:
           displayName: B2C styling $(shutterStorage) ($(b2cContainer))
           continueOnError: true
           inputs:
-            azureSubscription: $(ServiceConnection${{ parameters.env }})
+            azureSubscription: $(connection)
             scriptType: bash
             scriptLocation: inlineScript
             inlineScript: |
@@ -167,7 +178,7 @@ jobs:
         displayName: Registry $(acr) (lock / delete images)
         continueOnError: true
         inputs:
-          azureSubscription: $(ServiceConnection${{ parameters.env }})
+          azureSubscription: $(connection)
           scriptType: bash
           scriptLocation: inlineScript
           inlineScript: |
