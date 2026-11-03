@@ -116,6 +116,6 @@ epr-regulator-service-facade pipelines/vars/preprod.yaml serviceName prerwdwebwa
 epr-subsidiary-func-bulk-upload pipelines/vars/preprod.yaml azureSubscription $(ServiceConnectionPRE1)
 epr-subsidiary-func-bulk-upload pipelines/vars/preprod.yaml acr.azureContainerRegistryName prerwdinfac1401
 epr-subsidiary-func-bulk-upload pipelines/vars/preprod.yaml serviceName PRERWDWEBFA1408
-epr-web-shutter-screen-pages pipelines/vars/preprod.yaml azureSubscription AZR-RWD-PRE1
+epr-web-shutter-screen-pages pipelines/vars/preprod.yaml azureSubscription $(ServiceConnectionPRE1)
 epr-webapps-code-deploy-pipelines vars/preprod.yaml azureSubscription AZR-RWD-PRE1
 epr-webapps-code-deploy-pipelines vars/preprod.yaml acr.azureContainerRegistryName prerwdinfac1401

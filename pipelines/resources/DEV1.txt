@@ -45,9 +45,6 @@ epr-frontend-accountmanagement-microservice pipelines/vars/DEV1-development.yaml
 epr-frontend-accountmanagement-microservice pipelines/vars-regulator/DEV1-development.yaml azureSubscription $(ServiceConnectionDEV1)
 epr-frontend-accountmanagement-microservice pipelines/vars-regulator/DEV1-development.yaml acr.azureContainerRegistryName devrwdinfac1401
 epr-frontend-accountmanagement-microservice pipelines/vars-regulator/DEV1-development.yaml serviceName devrwdwebwa1412
-epr-live-service-function-app pipelines/vars/DEV1-development.yaml azureSubscription $(ServiceConnectionDEV1)
-epr-live-service-function-app pipelines/vars/DEV1-development.yaml acr.azureContainerRegistryName devrwdinfac1401
-epr-live-service-function-app pipelines/vars/DEV1-development.yaml serviceName DEVRWDWEBFA1480
 epr-logging-api pipelines/vars/DEV1-development.yaml azureSubscription $(ServiceConnectionDEV1)
 epr-logging-api pipelines/vars/DEV1-development.yaml acr.azureContainerRegistryName devrwdinfac1401
 epr-logging-api pipelines/vars/DEV1-development.yaml serviceName devrwdwebwa1403
