@@ -172,16 +172,25 @@ for acr, repos in sorted(registries.items()):
     # Reported with the pull check below when that is missing too (AcrPull fixes both).
     login_problem = None
     if login.returncode != 0:
-        login_problem = f"az acr login failed: {short(login.stderr)}"
+        login_problem = ("Azure AD login refused (401)" if "401" in login.stderr
+                         else f"az acr login failed: {short(login.stderr)}")
     elif "admin" in text.lower() or "401" in text:
         login_problem = "Azure AD login refused (401) - only works through the admin user"
     else:
         row("OK", "Registry", acr, join(repos), "Azure AD login")
     rc, reg, err = az("acr", "show", "--name", acr, "--query", "{id:id}")
     if rc != 0 or reg is None:
+        # The DEV2+ environments use devrwdinfac1401, which is in the DEV1 subscription: the
+        # connection cannot look it up from its own subscription, so its roles there are not checked.
+        elsewhere = "could not be found in subscription" in err
         if login_problem:
-            row("MISSING", "Registry", acr, join(repos), login_problem, f"AcrPull on {acr}")
-        row("MISSING", "Registry", acr, join(repos), f"cannot read the registry: {short(err)}", f"Microsoft.ContainerRegistry/registries/read on {acr}")
+            row("MISSING", "Registry", acr, join(repos),
+                login_problem + ("; registry is in another subscription" if elsewhere else ""), f"AcrPull on {acr}")
+        elif elsewhere:
+            row("OK", "Registry", acr, join(repos), "Azure AD login (registry is in another subscription; roles not checked)")
+        if not elsewhere:
+            row("MISSING", "Registry", acr, join(repos), f"cannot read the registry: {short(err)}",
+                f"Microsoft.ContainerRegistry/registries/read on {acr}")
         continue
     perms = permissions(reg["id"])
     if perms is None:
