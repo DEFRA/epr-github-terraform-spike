@@ -49,19 +49,14 @@ APP_ACTIONS = [
     "Microsoft.Web/sites/restart/action",
 ]
 
-# Repos whose findings are already known and not for the service connection team.
-KNOWN = {
-    "epr-prn-rep-exp-facade": "apps do not exist; waiting on the archiving decision",
-    "epr-prn-rep-exp-frontend": "apps do not exist; waiting on the archiving decision",
-}
+# Repos left out: not part of the -APP move (apps do not exist; archiving is another team's call).
+EXCLUDED = {"epr-prn-rep-exp-facade", "epr-prn-rep-exp-frontend"}
 
 rows = []
 
 
 def row(status, area, resource, needed_by, detail, action=""):
     """action: what to ask for (MISSING) or do (WARN)."""
-    if needed_by in KNOWN and status in ("MISSING", "WARN"):
-        status, detail, action = "KNOWN", detail, KNOWN[needed_by]
     rows.append((status, area, resource, needed_by, detail, action))
     print(f"{status:8} {area:10} {resource:32} {detail} [{needed_by}]")
     if status == "MISSING":
@@ -120,7 +115,7 @@ def allowed(perms, action, data=False):
 
 
 # Resources the repos' vars files name for this environment: repo, file, key, value
-resources = [l.split() for l in open(RESOURCES) if l.strip()]
+resources = [l.split() for l in open(RESOURCES) if l.strip() and l.split()[0] not in EXCLUDED]
 
 print(f"Environment {ENV}, connection {CONNECTION}\n")
 
@@ -245,14 +240,13 @@ if ENV in STORAGE:
 # Summary
 missing = sum(r[0] == "MISSING" for r in rows)
 warn = sum(r[0] == "WARN" for r in rows)
-known = sum(r[0] == "KNOWN" for r in rows)
 ok = sum(r[0] == "OK" for r in rows)
-headline = f"{ENV} {CONNECTION}: {missing} missing, {warn} warnings, {known} known, {ok} OK"
-order = {"MISSING": 0, "WARN": 1, "KNOWN": 2, "INFO": 3, "OK": 4}
+headline = f"{ENV} {CONNECTION}: {missing} missing, {warn} warnings, {ok} OK"
+order = {"MISSING": 0, "WARN": 1, "INFO": 2, "OK": 3}
 rows.sort(key=lambda r: (order[r[0]], r[1], r[2].lower()))
 
 # Table at the end of the log
-ICON = {"MISSING": "✗ MISSING", "WARN": "! WARN", "KNOWN": "~ KNOWN", "INFO": "i INFO", "OK": "✓ OK"}
+ICON = {"MISSING": "✗ MISSING", "WARN": "! WARN", "INFO": "i INFO", "OK": "✓ OK"}
 cols = [("Result", 9), ("Area", 9), ("Resource", 30), ("Needed by", 34), ("Problem / status", 38), ("Ask for / action", 38)]
 line = "+" + "+".join("-" * (w + 2) for _, w in cols) + "+"
 print("\n" + line)
@@ -272,12 +266,11 @@ cell = lambda v: str(v).replace("|", "\\|")
 sections = [
     ("MISSING", "❌ Missing - ask the service connection team", True),
     ("WARN", "⚠️ Warnings - for us to fix or check", True),
-    ("KNOWN", "➖ Known - already being handled", True),
     ("INFO", "ℹ️ Info", False),
     ("OK", "✅ OK", False),
 ]
 with open(SUMMARY, "w") as f:
-    f.write(f"## {ENV} - {CONNECTION}\n\n**{missing}** missing · **{warn}** warnings · **{known}** known · **{ok}** OK\n")
+    f.write(f"## {ENV} - {CONNECTION}\n\n**{missing}** missing · **{warn}** warnings · **{ok}** OK\n")
     for status, title, with_action in sections:
         these = [r for r in rows if r[0] == status]
         if not these:
