@@ -10,6 +10,8 @@
 #   Library     ServiceConnection<ENV> in the ServiceConnections library is the new connection (-APP)
 #   Repo vars   repos whose vars files still name a connection instead of using the library
 #   Apps        each repo's web/function app is visible, and the roles allow deploy + restart
+#   App config  pipeline_single_configuration (epr-app-config-settings): its apps, resource group,
+#               --subscription by name, a settings list (count only), delete/set/restart via roles
 #   Registry    Azure AD login (no admin-user fallback), pull, import (TST/PRE), push (DEV4 CI)
 #   Key Vault   SQL admin secret readable (SQL migrations)
 #   Storage     shutter page / B2C styling containers with --auth-mode login (DEV1, TST1, PRE1)

@@ -8,7 +8,9 @@ checks, without changing anything:
   Repo vars   no repo's vars file still names a connection directly
   Apps        every repo's web/function app is visible (deploy, restart) and the connection's
               roles on it allow what the deploy templates do
-  Registry    Azure AD login works (no admin-user fallback) and the roles allow pull (SQL
+  App config  pipeline_single_configuration's apps, resource group and --subscription by name; a
+              real settings list on one app (count only), delete/set/restart through the roles
+  Registry   Azure AD login works (no admin-user fallback) and the roles allow pull (SQL
               migration), import (Copy Image, TST/PRE) and push (CI, DEV4)
   Key Vault   the SQL admin secret can be read (docker-run-sql-migration.yaml)
   Storage     shutter page $web and B2C styling containers can be used with --auth-mode login
@@ -176,6 +178,53 @@ for rg, apps in sorted(by_rg.items()):
             f"roles {join(perms[4])} do not allow deploy/restart", f"{', '.join(lacking)} on {rg}")
     else:
         row("OK", "App", f"{rg} ({len(apps)} apps)", join(repos), f"deploy + restart via {join(perms[4])}")
+
+# App settings: pipeline_single_configuration (epr-app-config-settings) works on its own list of
+# apps in its own resource group, and passes --subscription by name. Its list call is made for real
+# (count only, values are never returned); delete, set and restart are checked through the roles.
+config_apps = [value for _, _, key, value in resources if key == "configApp"]
+if config_apps:
+    needed_by = "pipeline_single_configuration"
+    config_rg = next(value for _, _, key, value in resources if key == "configResourceGroup")
+    subscription = f"{'AZR' if ENV.startswith('PRE') else 'AZD'}-RWD-{ENV}"
+    rc, _, err = az("account", "show", "--subscription", subscription, "--query", "id")
+    if rc == 0:
+        row("OK", "App config", subscription, needed_by, "--subscription works with the subscription name")
+    else:
+        row("MISSING", "App config", subscription, needed_by, f"--subscription fails: {short(err)}",
+            f"access to subscription {subscription}, or change what the pipeline passes")
+    found = [visible[a.lower()] for a in config_apps if a.lower() in visible]
+    absent = sorted(a for a in config_apps if a.lower() not in visible)
+    in_rg = [s for s in found if s["rg"].upper() == config_rg.upper()]
+    elsewhere = sorted(s["name"] for s in found if s["rg"].upper() != config_rg.upper())
+    if absent:
+        row("WARN", "App config", f"{len(absent)} of {len(config_apps)} apps", needed_by,
+            f"settings file but app not visible: {', '.join(absent[:6])}" + (" ..." if len(absent) > 6 else ""),
+            "app may not exist in this environment; if it does, ask for read on its resource group")
+    if elsewhere:
+        row("WARN", "App config", f"{len(elsewhere)} apps", needed_by,
+            f"not in {config_rg}, where the pipeline looks: {', '.join(elsewhere[:6])}", "check by hand")
+    if in_rg:
+        perms = permissions(in_rg[0]["id"])
+        if perms is None:
+            row("WARN", "App config", f"{config_rg} ({len(in_rg)} apps)", needed_by,
+                "cannot read the connection's role assignments here", "check the roles by hand")
+        else:
+            lacking = [a for a in APP_ACTIONS if not allowed(perms, a)]
+            if lacking:
+                row("MISSING", "App config", f"{config_rg} ({len(in_rg)} apps)", needed_by,
+                    f"roles {join(perms[4])} do not allow delete, set or restart",
+                    f"{', '.join(lacking)} on {config_rg}")
+            else:
+                row("OK", "App config", f"{config_rg} ({len(in_rg)} apps)", needed_by,
+                    f"delete, set + restart allowed via {join(perms[4])}")
+        rc, count, err = az("webapp", "config", "appsettings", "list", "-g", config_rg, "-n", in_rg[0]["name"],
+                            "--subscription", subscription, "--query", "length(@)")
+        if rc == 0:
+            row("OK", "App config", in_rg[0]["name"], needed_by, f"can list app settings ({count} settings)")
+        else:
+            row("MISSING", "App config", in_rg[0]["name"], needed_by, f"cannot list app settings: {short(err)}",
+                f"Microsoft.Web/sites/config/list/action on {config_rg}")
 
 # Registry
 registries = collections.defaultdict(list)

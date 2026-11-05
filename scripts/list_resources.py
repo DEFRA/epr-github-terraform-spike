@@ -17,6 +17,7 @@ ENVS = ["DEV1", "DEV2", "DEV3", "DEV4", "DEV7", "DEV8", "DEV9", "DEV14", "DEV15"
 VARS_DIRS = ["pipelines/vars", "vars", "pipelines/vars-regulator"]
 KEYS = r"servicename$|^acr\.azureContainerRegistryName$|^acr\.repositoryName$|^kvName$|^azureSubscription$|^acr\.Subscription$"
 OUT = os.path.join(os.path.dirname(__file__), "..", "pipelines", "resources")
+CONFIG_REPO = "epr-app-config-settings"
 
 
 def candidates(env):
@@ -34,6 +35,29 @@ def load(text):
     if isinstance(v, dict):
         return {k: str(x) for k, x in v.items()}
     return {i["name"]: str(i.get("value")) for i in v or [] if isinstance(i, dict) and "name" in i}
+
+
+def config_lines(clones, env):
+    """The apps pipeline_single_configuration (epr-app-config-settings) can update in env, from its
+    settings files: DEV uses dev/ with X replaced by the environment's spoke, others <env>/."""
+    path = os.path.join(clones, CONFIG_REPO)
+    if not os.path.isdir(os.path.join(path, ".git")):
+        return []
+    git = lambda *a: subprocess.run(["git", "-C", path, *a], capture_output=True, text=True).stdout
+    vars_file = f"pipelines/vars/{env.lower()}.yaml"
+    # Read directly: some of these files have tabs that are not valid YAML for the parser here.
+    spoke = re.search(r"^\s*environmentSpoke:\s*(\S+)", git("show", f"origin/main:{vars_file}"), re.M)[1]
+    lines = [f"{CONFIG_REPO} {vars_file} configResourceGroup {env[:3]}RWDWEBRG{spoke}401"]
+    folder = "dev" if env.startswith("DEV") else env.lower()
+    for name in git("ls-tree", "--name-only", f"origin/main:{folder}").split():
+        if folder == "dev":
+            match = re.fullmatch(r"([A-Z]+)X(\d+)\.json", name)
+            if not match:
+                continue
+            name = f"{match[1]}{spoke}{match[2]}.json"
+        if name.endswith(".json"):
+            lines.append(f"{CONFIG_REPO} {folder}/ configApp {name[:-5]}")
+    return lines
 
 
 def main():
@@ -62,6 +86,7 @@ def main():
                             if re.search(KEYS, key, re.I):
                                 lines.append(f"{repo} {path} {key} {value}")
                         break
+        lines += config_lines(clones, env)
         with open(os.path.join(OUT, f"{env}.txt"), "w") as f:
             f.write("\n".join(lines) + "\n")
     print(f"{len(used)} repos with vars files: {', '.join(sorted(used))}")
